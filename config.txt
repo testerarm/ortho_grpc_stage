@@ -1,0 +1,4 @@
+my_ip=localhost:50001
+leader_ip=localhost:50001
+nodes_ip=localhost:50001,localhost:50002,localhost:50003
+data_folder=dataset

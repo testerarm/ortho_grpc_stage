@@ -1,0 +1,38 @@
+syntax = "proto3";
+
+option java_package = "ex.grpc";
+option objc_class_prefix = "HSW";
+
+package uploadFile;
+
+  
+service FileService {
+    rpc upload(stream Chunk) returns (UploadStatus) {}
+    rpc sendTask(Task) returns (TaskResponse) {}
+}
+
+message Task {
+    string taskName = 1;
+    string nodeId = 2;
+}
+
+message TaskResponse {
+    string taskName = 1;
+    string nodeId = 2;
+}
+
+message Chunk {
+    bytes content = 1;
+}
+
+enum UploadStatusCode {
+    Unknown = 0;
+    Ok = 1;
+    Failed = 2;
+}
+
+message UploadStatus {
+    string message = 1;
+    UploadStatusCode code = 2;
+}
+
