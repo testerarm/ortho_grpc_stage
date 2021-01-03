@@ -74,22 +74,22 @@ class FileClient:
         channel = grpc.insecure_channel(address) 
         self.stub = sendFile_pb2_grpc.FileServiceStub(channel)
 
-    def upload(self, in_file_name_or_file_path,is_dir=False):
+    def upload(self, file_path, filename_list):
         
 
         #https://stackoverflow.com/questions/45071567/how-to-send-custom-header-metadata-with-python-grpc
 
-        if not is_dir:
-            chunks_generator = get_file_chunks(in_file_name_or_file_path)
-            response, call = self.stub.upload.with_call(chunks_generator, metadata=(('node-id', self.nodeid),('filename', in_file_name_or_file_path)))
-        else:
-            images = glob.glob(in_file_name_or_file_path)
-            #print(images)
-            for each in images: 
+        for each_file in filename_list:   
+                chunks_generator = get_file_chunks(io.join_paths(file_path, filename_list))
+                response, call = self.stub.upload.with_call(chunks_generator, metadata=(('node-id', self.nodeid),('filename', each_file)))
+        # else:
+        #     images = glob.glob(in_file_name_or_file_path)
+        #     #print(images)
+        #     for each in images: 
                 
-                chunks_generator = get_file_chunks(each)
-                filename = each.split('/')[-1]
-                response, call = self.stub.upload.with_call(chunks_generator, metadata=(('node-id', self.nodeid),('filename', filename)))
+        #         chunks_generator = get_file_chunks(each)
+        #         filename = each.split('/')[-1]
+        #         response, call = self.stub.upload.with_call(chunks_generator, metadata=(('node-id', self.nodeid),('filename', filename)))
                 #print(response.length)
 
             # to do loop through the files 
@@ -106,6 +106,7 @@ class FileClient:
         # Send Compute Task
 
 
+
         #
         return 0
 
@@ -118,6 +119,24 @@ class FileClient:
 Server Compute Functions
 
 """""
+
+def sfm_extract_metadata_list_of_images(image_path, node_file_path, opensfm_config):
+
+    try:
+        ref_image = os.listdir(image_path)
+        for each in ref_image:
+            d  = opensfm_interface.extract_metadata_image(image_path+each, opensfm_config)
+            if d['camera'] not in camera_models:
+                camera = exif.camera_from_exif_metadata(d, opensfm_config)
+                camera_models[d['camera']] = camera
+            opensfm_interface.save_exif(node_file_path+'exif',each,d)
+        opensfm_interface.save_camera_models(node_file_path, camera_models)
+
+        return True
+    except:
+        return False
+    
+
 
 
 def sfm_extract_metadata_one_image(image_file_path, opensfm_config):
@@ -184,6 +203,10 @@ def odm_mesh_function():
     return 
 
 def odm_texturing_function():
+      
+    mvs_folder= '/home/j/ODM-master/grpc_stages/node1/mvs'
+    mvs_texturing.mvs_texturing(odm_mesh_ply, mvs_folder, nvm_file)  
+    
     return 
 
 
@@ -212,144 +235,144 @@ class FileServer(sendFile_pb2_grpc.FileServiceServicer):
 
         #extract metadata 
 
-        camera_models = {}
-        current_path = '/home/j/ODM-master/grpc_stages/node1/'
+        # camera_models = {}
+        # current_path = '/home/j/ODM-master/grpc_stages/node1/'
 
-        ref_image = ['DJI_0019.JPG', 'DJI_0018.JPG','DJI_0020.JPG','DJI_0021.JPG','DJI_0022.JPG','DJI_0023.JPG','DJI_0024.JPG'
-        ,'DJI_0025.JPG','DJI_0026.JPG','DJI_0027.JPG','DJI_0028.JPG','DJI_0029.JPG','DJI_0030.JPG','DJI_0031.JPG','DJI_0032.JPG','DJI_0033.JPG','DJI_0034.JPG','DJI_0035.JPG']
-        cand_images = ['DJI_0019.JPG', 'DJI_0018.JPG','DJI_0020.JPG','DJI_0021.JPG','DJI_0022.JPG','DJI_0023.JPG','DJI_0024.JPG'
-        ,'DJI_0025.JPG','DJI_0026.JPG','DJI_0027.JPG','DJI_0028.JPG','DJI_0029.JPG','DJI_0030.JPG','DJI_0031.JPG','DJI_0032.JPG','DJI_0033.JPG','DJI_0034.JPG','DJI_0035.JPG']
+        # ref_image = ['DJI_0019.JPG', 'DJI_0018.JPG','DJI_0020.JPG','DJI_0021.JPG','DJI_0022.JPG','DJI_0023.JPG','DJI_0024.JPG'
+        # ,'DJI_0025.JPG','DJI_0026.JPG','DJI_0027.JPG','DJI_0028.JPG','DJI_0029.JPG','DJI_0030.JPG','DJI_0031.JPG','DJI_0032.JPG','DJI_0033.JPG','DJI_0034.JPG','DJI_0035.JPG']
+        # cand_images = ['DJI_0019.JPG', 'DJI_0018.JPG','DJI_0020.JPG','DJI_0021.JPG','DJI_0022.JPG','DJI_0023.JPG','DJI_0024.JPG'
+        # ,'DJI_0025.JPG','DJI_0026.JPG','DJI_0027.JPG','DJI_0028.JPG','DJI_0029.JPG','DJI_0030.JPG','DJI_0031.JPG','DJI_0032.JPG','DJI_0033.JPG','DJI_0034.JPG','DJI_0035.JPG']
 
-        for each in ref_image:
-            d  = opensfm_interface.extract_metadata_image('/home/j/ODM-master/grpc_stages/node1/'+each, opensfm_config)
-            if d['camera'] not in camera_models:
-                camera = exif.camera_from_exif_metadata(d, opensfm_config)
-                camera_models[d['camera']] = camera
-            opensfm_interface.save_exif('/home/j/ODM-master/grpc_stages/node1/exif', each, d)
-        opensfm_interface.save_camera_models('/home/j/ODM-master/grpc_stages/node1/', camera_models)
+        # for each in ref_image:
+        #     d  = opensfm_interface.extract_metadata_image('/home/j/ODM-master/grpc_stages/node1/'+each, opensfm_config)
+        #     if d['camera'] not in camera_models:
+        #         camera = exif.camera_from_exif_metadata(d, opensfm_config)
+        #         camera_models[d['camera']] = camera 
+        #     opensfm_interface.save_exif('/home/j/ODM-master/grpc_stages/node1/exif', each,d)
+        # opensfm_interface.save_camera_models('/home/j/ODM-master/grpc_stages/node1/', camera_models)
         
-        #c  = opensfm_interface.extract_metadata_image('/home/j/ODM-master/grpc_stages/node1/DJI_0019.JPG', opensfm_config)
+        # #c  = opensfm_interface.extract_metadata_image('/home/j/ODM-master/grpc_stages/node1/DJI_0019.JPG', opensfm_config)
        
 
-        print(d)
-        print(camera_models)
-        #opensfm_interface.save_exif('/home/j/ODM-master/grpc_stages/node1/', 'DJI_0019.JPG', c)
+        # print(d)
+        # print(camera_models)
+        # #opensfm_interface.save_exif('/home/j/ODM-master/grpc_stages/node1/', 'DJI_0019.JPG', c)
         
-        #save the exif metadata to file in a folder
-        # send extracted metedata and camera model back
+        # #save the exif metadata to file in a folder
+        # # send extracted metedata and camera model back
 
  
 
-        #feature extraction
-        for each in ref_image:
-            opensfm_interface.detect(current_path+'features', current_path+each,each ,opensfm_config)
+        # #feature extraction
+        # for each in ref_image:
+        #     opensfm_interface.detect(current_path+'features', current_path+each,each ,opensfm_config)
 
 
-        #opensfm_interface.detect(current_path+'features', current_path+'DJI_0019.JPG','DJI_0019.JPG' ,opensfm_config)
+        # #opensfm_interface.detect(current_path+'features', current_path+'DJI_0019.JPG','DJI_0019.JPG' ,opensfm_config)
 
 
 
 
-        #feature matching
+        # #feature matching
 
        
 
-        pairs_matches, preport = new_matching.match_images(current_path, ref_image, cand_images, opensfm_config)
-        new_matching.save_matches(current_path, ref_image, pairs_matches)
-        print('matching')
+        # pairs_matches, preport = new_matching.match_images(current_path, ref_image, cand_images, opensfm_config)
+        # new_matching.save_matches(current_path, ref_image, pairs_matches)
+        # print('matching')
         
 
 
 
-        #create tracks first
+        # #create tracks first
 
-        features, colors = tracking.load_features(current_path+'features', ref_image, opensfm_config)
-        matches = tracking.load_matches(current_path, ref_image)
-        graph = tracking.create_tracks_graph(features, colors, matches,
-                                             opensfm_config)
+        # features, colors = tracking.load_features(current_path+'features', ref_image, opensfm_config)
+        # matches = tracking.load_matches(current_path, ref_image)
+        # graph = tracking.create_tracks_graph(features, colors, matches,
+        #                                      opensfm_config)
 
-        opensfm_interface.save_tracks_graph(graph, current_path)
-
-
-
-        #reconstruction
+        # opensfm_interface.save_tracks_graph(graph, current_path)
 
 
-        # load tracks graph
 
-        graph = opensfm_interface.load_tracks_graph(current_path)
-        report, reconstructions = reconstruction.incremental_reconstruction(current_path, graph, opensfm_config)
+        # #reconstruction
 
-        opensfm_interface.save_reconstruction(current_path,reconstructions)
-        #opensfm_interface.save_report(io.json_dumps(report), 'reconstruction.json')
+
+        # # load tracks graph
+
+        # graph = opensfm_interface.load_tracks_graph(current_path)
+        # report, reconstructions = reconstruction.incremental_reconstruction(current_path, graph, opensfm_config)
+
+        # opensfm_interface.save_reconstruction(current_path,reconstructions)
+        # #opensfm_interface.save_report(io.json_dumps(report), 'reconstruction.json')
       
-        outputs = {}
-        photos = []
-        from opendm import photo
-        from opendm import types
+        # outputs = {}
+        # photos = []
+        # from opendm import photo
+        # from opendm import types
         
-        for each in ref_image:
-            photos += [types.ODM_Photo(current_path+each)]
+        # for each in ref_image:
+        #     photos += [types.ODM_Photo(current_path+each)]
           
         
-        # get match image sizes
-        outputs['undist_image_max_size'] = max(
-            gsd.image_max_size(photos, 5.0, current_path+'reconstruction.json'),
-            0.1
-        )        
-        print(outputs)
+        # # get match image sizes
+        # outputs['undist_image_max_size'] = max(
+        #     gsd.image_max_size(photos, 5.0, current_path+'reconstruction.json'),
+        #     0.1
+        # )        
+        # print(outputs)
 
-        #undistort image dataset: 
+        # #undistort image dataset: 
 
-        opensfm_interface.opensfm_undistort(current_path, opensfm_config)
+        # opensfm_interface.opensfm_undistort(current_path, opensfm_config)
 
 
-        #export visualsfm
+        # #export visualsfm
 
-        opensfm_interface.open_export_visualsfm(current_path, opensfm_config)
+        # opensfm_interface.open_export_visualsfm(current_path, opensfm_config)
 
-        #compute depthmaps 
+        # #compute depthmaps 
 
-        opensfm_interface.open_compute_depthmaps(current_path, opensfm_config)
+        # opensfm_interface.open_compute_depthmaps(current_path, opensfm_config)
 
       
-        #mve stage 1 makescene
+        # #mve stage 1 makescene
 
-        #input compute depthmaps file
+        # #input compute depthmaps file
         
-        mve_file_path = '/home/j/ODM-master/grpc_stages/node1/mve'
-        nvm_file = '/home/j/ODM-master/grpc_stages/node1/undistorted/reconstruction.nvm'
-        mve_interface.mve_makescene(nvm_file, mve_file_path, 2)
+        # mve_file_path = '/home/j/ODM-master/grpc_stages/node1/mve'
+        # nvm_file = '/home/j/ODM-master/grpc_stages/node1/undistorted/reconstruction.nvm'
+        # mve_interface.mve_makescene(nvm_file, mve_file_path, 2)
 
 
-        #mve stage 2 dense reconstruction
+        # #mve stage 2 dense reconstruction
 
-        mve_interface.mve_dense_recon(outputs['undist_image_max_size'], mve_file_path, 2)
+        # mve_interface.mve_dense_recon(outputs['undist_image_max_size'], mve_file_path, 2)
 
-        #mve stage 3 scene2pset_path
-        mve_model = io.join_paths(mve_file_path, 'mve_dense_point_cloud.ply')
-        mve_interface.mve_scene2pset(mve_file_path, mve_model,outputs['undist_image_max_size'],2)
+        # #mve stage 3 scene2pset_path
+        # mve_model = io.join_paths(mve_file_path, 'mve_dense_point_cloud.ply')
+        # mve_interface.mve_scene2pset(mve_file_path, mve_model,outputs['undist_image_max_size'],2)
 
-        #mve stage 4 clean_mesh
-        mve_interface.mve_cleanmesh(0.6, mve_model, 2)
+        # #mve stage 4 clean_mesh
+        # mve_interface.mve_cleanmesh(0.6, mve_model, 2)
 
 
 
-        # filterpoint cloud
-        odm_filterpoints = '/home/j/ODM-master/grpc_stages/node1/filterpoints'
-        filterpoint_cloud = io.join_paths(odm_filterpoints, "point_cloud.ply")
+        # # filterpoint cloud
+        # odm_filterpoints = '/home/j/ODM-master/grpc_stages/node1/filterpoints'
+        # filterpoint_cloud = io.join_paths(odm_filterpoints, "point_cloud.ply")
 
-        filterpoint_interface.filter_points(odm_filterpoints, mve_model, filterpoint_cloud,2)
+        # filterpoint_interface.filter_points(odm_filterpoints, mve_model, filterpoint_cloud,2)
 
-        #meshing stage
-        odm_mesh_folder= '/home/j/ODM-master/grpc_stages/node1/mesh'
-        odm_mesh_ply = io.join_paths(odm_mesh_folder, "odm_mesh.ply")
-        mesh_interface.mesh_3d(odm_mesh_folder, odm_mesh_ply, filterpoint_cloud, 2)
+        # #meshing stage
+        # odm_mesh_folder= '/home/j/ODM-master/grpc_stages/node1/mesh'
+        # odm_mesh_ply = io.join_paths(odm_mesh_folder, "odm_mesh.ply")
+        # mesh_interface.mesh_3d(odm_mesh_folder, odm_mesh_ply, filterpoint_cloud, 2)
 
-        #texturing stage
+        # #texturing stage
 
-        mvs_folder= '/home/j/ODM-master/grpc_stages/node1/mvs'
-        mvs_texturing.mvs_texturing(odm_mesh_ply, mvs_folder, nvm_file)       
+        # mvs_folder= '/home/j/ODM-master/grpc_stages/node1/mvs'
+        # mvs_texturing.mvs_texturing(odm_mesh_ply, mvs_folder, nvm_file)       
 
         #https://stackoverflow.com/questions/45071567/how-to-send-custom-header-metadata-with-python-grpc
 
