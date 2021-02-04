@@ -15,6 +15,8 @@ import sys
 
 from timeit import default_timer as timer
 
+selfnodeid = 1
+
 def do_task(job_queue):
 
 
@@ -23,7 +25,7 @@ def do_task(job_queue):
         try:
             task = job_queue.get() # returns a map 
             print("task: " + str(task))
-            if 'self' in task:
+            if task['clientid'] == selfnodeid:
 
                 response = False
                 
@@ -113,6 +115,7 @@ def do_task(job_queue):
 
                 if task['title'] == 'upload_image':
                     print('upload')
+        
                     response = task['client'].upload(task['filepath'], task['list'])
                     print(response)
                 elif task['title'] == 'extract_exif':
@@ -245,17 +248,19 @@ if __name__ == '__main__':
 
 
         nodeid = 1
-        nodeid_list = [2, 3]
-        nodeid_map = {2: '8080', 3: '50001'}
+        nodeid_list = [1,2]
+        nodeid_map = {2: '8080'}
         node_client = {}
 
 
 
 
-        nodes_available = {2: True, 3: True}
+        nodes_available = {2: True}
 
 
         for each_node in nodeid_map:
+            if (each_node == nodeid):
+                continue
             client = lib.FileClient('localhost:' + nodeid_map[each_node], nodeid)
             node_client[each_node] = client
 
@@ -302,7 +307,7 @@ if __name__ == '__main__':
                 photolist = photo_list[current_photo_pointer:new_photos_for_node]
                 current_photo_pointer+=new_photos_for_node
                 print(str(eachnode) + " : " + str(photolist))
-                job_map = {'title': 'upload_image', 'client': node_client[eachnode], 'list': photolist, 'filepath': images_filepath+'/images'}
+                job_map = {'title': 'upload_image', 'client': node_client[eachnode], 'list': photolist, 'filepath': images_filepath+'/images', 'clientid': eachnode}
                 job_queue.put(job_map)
                 photos_rem = 0
                 
@@ -316,7 +321,7 @@ if __name__ == '__main__':
                 photolist = photo_list[current_photo_pointer:end_pointer]
                 current_photo_pointer+=photos_per_node
                 print(str(eachnode) + " : " +  str(photolist))
-                job_map = {'title': 'upload_image', 'client': node_client[eachnode], 'list': photolist, 'filepath': images_filepath+'/images'}
+                job_map = {'title': 'upload_image', 'client': node_client[eachnode], 'list': photolist, 'filepath': images_filepath+'/images', 'clientid': eachnode}
                 job_queue.put(job_map)
            
                
@@ -334,7 +339,7 @@ if __name__ == '__main__':
         start = timer()
 
         for each in nodeid_list:
-            job_task_extract_exif = {'title': 'extract_exif', 'client': node_client[each], 'nodeid': nodeid}
+            job_task_extract_exif = {'title': 'extract_exif', 'client': node_client[each], 'nodeid': nodeid, 'clientid': each}
             job_queue.put(job_task_extract_exif)
         
 
@@ -356,7 +361,7 @@ if __name__ == '__main__':
 
         #for each
         for each in nodeid_list:
-            job_task_detect = {'title': 'detect_features', 'client': node_client[each], 'nodeid': nodeid}
+            job_task_detect = {'title': 'detect_features', 'client': node_client[each], 'nodeid': nodeid, 'clientid': each}
             job_queue.put(job_task_detect)
 
       
@@ -429,8 +434,8 @@ if __name__ == '__main__':
         # start value for the client number
         node_client_num = 2
         for each in pairs:
-            job_task = {'title': 'feature_matching_pairs', 'client': node_client[node_client_num], 'nodeid': 1, 'pair': each, 'filepath': file_path, 'results': results, 'lock': thread_lock}
-            node_client_num = ((node_client_num + 1) % 2) + 2  
+            job_task = {'title': 'feature_matching_pairs', 'client': node_client[node_client_num], 'nodeid': 1, 'pair': each, 'filepath': file_path, 'results': results, 'lock': thread_lock, 'clientid': node_client_num}
+            node_client_num = ((node_client_num + 1) % 2) + 1  
             job_queue.put(job_task)
             
 
@@ -712,6 +717,8 @@ if __name__ == '__main__':
         print('ODM Texturing Total Time: ' + str(odm_texturing_time))
         
         
+        print('Total Time: ' str(upload_image_time+exif_extraction_time+detect_features_time+feature_matching_time+create_tracks_time+sfm_opensfm_reconstruction_time+sfm_undistort_image_time+sfm_export_visualsfm_time+
+        sfm_compute_depthmaps_time+mve_makescene_function_time+mve_dense_reconstruction_time+mve_mve_cleanmesh_time+mve_mve_scene2pset_time+odm_texturing_time+odm_filterpoint_time+odm_mesh_time))
         print('#######################')
 
 
