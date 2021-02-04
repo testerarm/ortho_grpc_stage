@@ -4,6 +4,7 @@ import cv2
 import networkx as nx
 import numpy as np
 from six import iteritems
+import os
 
 #from opensfm import dataset
 from opensfm import features
@@ -107,7 +108,7 @@ def undistort_image_and_masks(arguments):
     logger.debug('Undistorting image {}'.format(shot.id))
 
     # Undistort image
-    image = opensfm_interface.load_image(file_path+shot.id, unchanged=True, anydepth=True)
+    image = opensfm_interface.load_image(os.path.join(file_path, 'images', shot.id), unchanged=True, anydepth=True)
     if image is not None:
         if imageFilter is not None:
             image = imageFilter(shot.id, image)

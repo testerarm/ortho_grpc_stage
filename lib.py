@@ -1,14 +1,15 @@
 import os
 import io
-import grpc
 import time
 import glob
-import asyncio
-from grpc import aio
-
+import grpc
+import traceback
 
 from concurrent import futures
+from concurrent.futures import ThreadPoolExecutor
 
+import faulthandler
+faulthandler.enable()
 
 
 import sys
@@ -49,39 +50,128 @@ import filterpoint_interface
 import mesh_interface
 
 
+dir_path = os.path.dirname(os.path.realpath(__file__))
+
+print('dir path: ' + str(dir_path))
+
 
 def get_file_chunks(filename):
+    print('file name in get file chucks ' + filename)
     with open(filename, 'rb') as f:
         while True:
             piece = f.read(CHUNK_SIZE)
             if len(piece) == 0:
                 return
-            yield sendFile_pb2.Chunk(Content=piece)
+            yield sendFile_pb2.Chunk(content=piece)
        
 
 
 def save_chunks_to_file(chunks, filename):
     print('save chuck size: ' + str(CHUNK_SIZE)+ ' Bytes  to filename: ' + str(filename))
+
     with open(filename, 'wb') as f:
         for chunk in chunks:
-            f.write(chunk.Content)
+            f.write(chunk.content)
 
 
 class FileClient:
     def __init__(self, address, nodeid):
         # strongly typed for now
-        self.nodeid = nodeid
+        self.nodeid = str(nodeid)
+        print(nodeid)
+        print('address' + str(address))
         channel = grpc.insecure_channel(address) 
         self.stub = sendFile_pb2_grpc.FileServiceStub(channel)
+
+    def sendTask(self, taskName, this_nodeid, taskDir, pairs=[]):
+
+
+        #send Task -> task name 
+
+        try:
+            print('task ' + str(taskName) + ' id ' + str(this_nodeid))
+
+            
+           
+
+            task = sendFile_pb2.Task(taskName = taskName, nodeId='node'+str(this_nodeid))
+            if (taskName == 'feature_match_pairs'):
+                task.feature_pair.pair1 = pairs[0]
+                task.feature_pair.pair2 = pairs[1]
+
+            response = self.stub.sendTask(task)
+            response_dir = dir_path + '/node' + str(this_nodeid) + taskDir
+            if not os.path.isdir(response_dir):
+                system.mkdir_p(response_dir)
+            print(response_dir)
+
+            file_chunk_list = []
+            current_filename = ''
+            for each in response:
+                print('file name ' + str(each.filename))
+                if current_filename == '': 
+                    current_filename = each.filename
+                if each.filename != current_filename:
+                    #empty the file chucks into the file
+                    print(current_filename)
+                    save_chunks_to_file(file_chunk_list, response_dir + '/' + current_filename)
+
+                    current_filename = each.filename
+                    file_chunk_list = []
+                    file_chunk_list.append(each)
+
+                else:
+                    file_chunk_list.append(each)
+                
+                #print(each.content)
+            if len(file_chunk_list) > 0:
+                if current_filename == 'camera_models.json':
+                    response_dir = dir_path + '/node' + str(this_nodeid)
+                save_chunks_to_file(file_chunk_list, response_dir + '/' + current_filename)
+
+
+            print('len of file chuck ')
+            print(len(file_chunk_list))
+            print(current_filename)
+            
+
+
+
+
+
+            # print(str(response))
+            # print(type(response))
+        
+            return response
+
+        except Exception as e:
+            print(' Exception : ' + str(e.message))
+            print(traceback.print_exc())
+
+
+
+
+
+
 
     def upload(self, file_path, filename_list):
         
 
         #https://stackoverflow.com/questions/45071567/how-to-send-custom-header-metadata-with-python-grpc
+        folder = file_path.split('/')[-1]
+        print('folder ' + str(folder))
+
 
         for each_file in filename_list:   
-                chunks_generator = get_file_chunks(io.join_paths(file_path, filename_list))
-                response, call = self.stub.upload.with_call(chunks_generator, metadata=(('node-id', self.nodeid),('filename', each_file)))
+                chunks_generator = get_file_chunks(io.join_paths(file_path, each_file))
+                print('folder here before call ' + str(folder))
+                if(folder is None):
+                    print('folder is none')
+                #foldername = 'images'
+                call_future , call = self.stub.upload.with_call(chunks_generator, metadata=(('node-id', 'node'+self.nodeid),('filename', each_file), ('folder', folder)))
+                #call_future.add_done_callback(self.process_response)
+                #print('here in client upload')
+                print(call_future)
         # else:
         #     images = glob.glob(in_file_name_or_file_path)
         #     #print(images)
@@ -95,20 +185,11 @@ class FileClient:
             # to do loop through the files 
 
         #assert response.length == os.path.getsize(in_file_name_or_file_path)
-        return response
+        return call_future
 
     def download(self, target_name, out_file_name):
         response = self.stub.download(sendFile_pb2.Request(name=target_name))
         save_chunks_to_file(response, out_file_name)
-
-
-    def compute(self, request, context):
-        # Send Compute Task
-
-
-
-        #
-        return 0
 
 
 
@@ -120,99 +201,331 @@ Server Compute Functions
 
 """""
 
-def sfm_extract_metadata_list_of_images(image_path, node_file_path, opensfm_config):
+def sfm_extract_metadata_list_of_images(image_path,  opensfm_config, node_file_path):
 
     try:
         ref_image = os.listdir(image_path)
-        for each in ref_image:
-            d  = opensfm_interface.extract_metadata_image(image_path+each, opensfm_config)
-            if d['camera'] not in camera_models:
-                camera = exif.camera_from_exif_metadata(d, opensfm_config)
-                camera_models[d['camera']] = camera
-            opensfm_interface.save_exif(node_file_path+'exif',each,d)
+        print('inside sfm extract')
+        print(str(ref_image))
+        camera_models = {}
+        for i in range(len(ref_image)):
+            each = ref_image[i]
+            print('path ' + io.join_paths(image_path, each))
+            if os.path.isfile(io.join_paths(image_path, each)):
+                print('path is valid')
+                d  = opensfm_interface.extract_metadata_image(io.join_paths(image_path, each), opensfm_config)
+                if d['camera'] not in camera_models:
+                    camera = exif.camera_from_exif_metadata(d, opensfm_config)
+                    camera_models[d['camera']] = camera
+                print('nodefile path ' + str(node_file_path))
+                opensfm_interface.save_exif(io.join_paths(node_file_path,'exif'),each,d)
+            
+            else:
+                print('path is not valid')
         opensfm_interface.save_camera_models(node_file_path, camera_models)
+           
 
         return True
-    except:
+    except Exception as e:
+        print(e.message)
+        print(traceback.print_exc())
+        print(traceback.print_exception())
+        
         return False
     
 
 
 
-def sfm_extract_metadata_one_image(image_file_path, opensfm_config):
+def sfm_detect_features(ref_image, current_path, opensfm_config):
 
-    return 
+    """
+     feature path 
+     image path
+     opensfm config
 
-def sfm_extract_features_one_image():
+    """
+    print('detect feature' + str(current_path))
 
-    return
-
-def sfm_match_images():
-    return 
-
-
-def sfm_detect_features():
-    return 
-
-def sfm_feature_matching():
-    return 
-
-def sfm_create_tracks():
-    return 
-
-
-def sfm_opensfm_reconstruction():
-    return 
-
-def sfm_max_undistort_image_size():
-    return 
-
-
-def sfm_undistort_image():
-    return 
-
-def sfm_export_visual_sfm():
-    return 
-
-
-def sfm_compute_deptmaps():
-    return 
-
-
-def mve_dense_reconstruction():
-    return 
-
-
-def mve_makescene_function():
-
-    return 
-
-
-def mve_scene2pset_function():
-    return 
-
-def mve_cleanmesh_function():
-    return 
-
-
-def odm_filterpoints_function():
-
-    return 
-
-def odm_mesh_function():
-    return 
-
-def odm_texturing_function():
-      
-    mvs_folder= '/home/j/ODM-master/grpc_stages/node1/mvs'
-    mvs_texturing.mvs_texturing(odm_mesh_ply, mvs_folder, nvm_file)  
+    feature_path = current_path + '/features'
     
+    image_path = current_path + '/images/'
+
+    try: 
+        for each in ref_image:
+            opensfm_interface.detect(feature_path, image_path+each,each ,opensfm_config)
+    except Exception as e:
+        print(traceback.print_exc())
+        return False
+    
+    return True
+
+def sfm_feature_matching(current_path, ref_image, cand_images , opensfm_config):
+
+    """
+
+    image_path
+    ref_image : list of images 
+    opensfm config
+
+
+    """
+    try: 
+
+        # load exif is needed
+        print('feature matching')
+
+        pairs_matches, preport = new_matching.match_images(current_path+'/', ref_image, ref_image, opensfm_config)
+        print(pairs_matches)
+        new_matching.save_matches(current_path+'/', ref_image, pairs_matches)
+
+        #tracking.load_matches(current_path, ref_image)
+    except Exception as e:
+        print(traceback.print_exc())
+        return False
+
     return 
+
+def sfm_feature_matching_pairs(current_path, ref_image, cand_images , opensfm_config):
+
+    """
+
+    image_path
+    ref_image : list of images 
+    opensfm config
+
+
+    """
+    try: 
+
+        # load exif is needed
+        print('feature matching')
+
+        pairs_matches, preport = new_matching.match_images(current_path+'/', ref_image, ref_image, opensfm_config)
+        print(pairs_matches)
+
+        new_matching.save_matches(current_path+'/', ref_image, pairs_matches)
+
+        #tracking.load_matches(current_path, ref_image)
+        return pairs_matches
+    except Exception as e:
+        print(traceback.print_exc())
+        return None
+
+    return 
+
+def sfm_create_tracks(current_path, ref_image, opensfm_config, matches = {}):
+    """
+    
+    path to features 
+    ref_image list 
+    opensfm config
+
+
+    """
+
+    try: 
+        features, colors = tracking.load_features(current_path+'/features', ref_image, opensfm_config)
+        if bool(matches) is False:
+            matches = tracking.load_matches(current_path, ref_image)
+    
+
+        print('feature length: ' + str(len(features)))
+
+        graph = tracking.create_tracks_graph(features, colors, matches,
+                                            opensfm_config)
+
+        opensfm_interface.save_tracks_graph(graph, current_path)
+    
+    except Exception as e:
+        print(traceback.print_exc())
+        return False
+    
+    return True
+
+
+def sfm_opensfm_reconstruction(current_path, opensfm_config):
+
+
+    try:
+        graph = opensfm_interface.load_tracks_graph(current_path)
+        report, reconstructions = reconstruction.incremental_reconstruction(current_path, graph, opensfm_config)
+        opensfm_interface.save_reconstruction(current_path,reconstructions)
+    except Exception as e:
+        print(traceback.print_exc())
+        return False
+    return True 
+
+def sfm_max_undistort_image_size(current_path, image_path):
+    outputs = {}
+    photos = []
+    from opendm import photo
+    from opendm import types
+
+    ref_image = os.listdir(image_path)
+    
+    try: 
+        for each in ref_image:
+            photos += [types.ODM_Photo(os.path.join(image_path, each))]
+        
+    
+        # get match image sizes
+        outputs['undist_image_max_size'] = max(
+            gsd.image_max_size(photos, 5.0, current_path+'reconstruction.json'),
+            0.1
+        )        
+        # print(outputs)
+
+        # #undistort image dataset: 
+
+        #
+    except Exception as e:
+        print(traceback.print_exc())
+        return False
+
+    return outputs['undist_image_max_size'] 
+
+
+def sfm_undistort_image(current_path, opensfm_config):
+    
+    try:
+    
+        opensfm_interface.opensfm_undistort(current_path, opensfm_config)
+    except Exception as e:
+        print(traceback.print_exc())
+        return False
+    return True
+
+def sfm_export_visual_sfm(current_path, opensfm_config):
+
+
+    try:
+
+        opensfm_interface.open_export_visualsfm(current_path, opensfm_config)
+    except Exception as e:
+        print(traceback.print_exc())
+        return False
+
+    return 
+
+
+def sfm_compute_depthmaps(current_path, opensfm_config):
+
+    try:
+        opensfm_interface.open_compute_depthmaps(current_path, opensfm_config)
+    except Exception as e:
+        print(traceback.print_exc())
+        return False
+    
+    return True 
+
+
+def mve_dense_reconstruction(current_path, max_concurrency):
+
+    try:
+        mve_file_path = os.path.join(current_path,'mve')
+    
+        mve_interface.mve_dense_recon(sfm_max_undistort_image_size(current_path, os.path.join(current_path, 'images')), mve_file_path, max_concurrency)
+    except Exception as e:
+        print(traceback.print_exc())
+        return False
+    
+    return True
+
+
+def mve_makescene_function(current_path, max_concurrency):
+
+    try: 
+        mve_file_path =os.path.join(current_path,'mve')
+        nvm_file = os.path.join(current_path,'undistorted', 'reconstruction.nvm')
+        mve_interface.mve_makescene(nvm_file, mve_file_path, max_concurrency)
+    except Exception as e:
+        print(traceback.print_exc())
+        return False
+
+    return True 
+
+
+def mve_scene2pset_function(current_path, max_concurrency):
+
+    try:
+        mve_file_path = os.path.join(current_path,'mve')
+        mve_model = io.join_paths(mve_file_path, 'mve_dense_point_cloud.ply')
+        mve_interface.mve_scene2pset(mve_file_path, mve_model,sfm_max_undistort_image_size(current_path, os.path.join(current_path, 'images')),max_concurrency)
+    except Exception as e:
+        print(traceback.print_exc())
+        return False
+
+    return True 
+
+def mve_cleanmesh_function(current_path, max_concurrency):
+    
+    try:
+        mve_file_path = os.path.join(current_path,'mve')
+        mve_model = io.join_paths(mve_file_path, 'mve_dense_point_cloud.ply')
+        mve_interface.mve_cleanmesh(0.6, mve_model, max_concurrency)
+    except Exception as e:
+        print(traceback.print_exc())
+        return False
+    return True
+
+
+def odm_filterpoints_function(current_path, max_concurrency):
+
+    try:
+        mve_file_path = os.path.join(current_path,'mve')
+        mve_model = io.join_paths(mve_file_path, 'mve_dense_point_cloud.ply')
+
+        odm_filterpoints = os.path.join(current_path,'filterpoints')
+        filterpoint_cloud = io.join_paths(odm_filterpoints, "point_cloud.ply")
+
+        filterpoint_interface.filter_points(odm_filterpoints, mve_model, filterpoint_cloud, max_concurrency)
+    except Exception as e:
+        print(traceback.print_exc())
+        return False
+    return True
+
+def odm_mesh_function(current_path, max_concurrency):
+
+
+    try:
+    
+        odm_filterpoints = os.path.join(current_path,'filterpoints')
+        filterpoint_cloud = io.join_paths(odm_filterpoints, "point_cloud.ply")
+
+        odm_mesh_folder= os.path.join(current_path,'mesh')
+        odm_mesh_ply = io.join_paths(odm_mesh_folder, "odm_mesh.ply")
+        mesh_interface.mesh_3d(odm_mesh_folder, odm_mesh_ply, filterpoint_cloud, max_concurrency)
+    except Exception as e:
+        print(traceback.print_exc())
+        return False
+
+    return True
+
+def odm_texturing_function(current_path):
+      
+    try:   
+        mvs_folder= os.path.join(current_path,'mvs')
+        odm_mesh_folder= cos.path.join(current_path,'mesh')
+        odm_mesh_ply = io.join_paths(odm_mesh_folder, "odm_mesh.ply")
+        nvm_file = os.path.join(current_path,'undistorted', 'reconstruction.nvm')
+
+        mvs_texturing.mvs_texturing(odm_mesh_ply, mvs_folder, nvm_file)  
+    except Exception as e:
+        print(traceback.print_exc())
+        return False
+
+    return True
+
+
+
 
 
 class FileServer(sendFile_pb2_grpc.FileServiceServicer):
-    def __init__(self):
-        self.nodeid = 1
+    def __init__(self, port, node_id, dataset_path):
+        self.port = port
+        self.node_id = str(node_id)
+        node_path = io.join_paths(dir_path, 'node'+self.node_id)
+        self.dataset_dir = dataset_path
         #configuration
         # args  = config.config()
         # args.project_path = "./dataset/images"
@@ -232,6 +545,7 @@ class FileServer(sendFile_pb2_grpc.FileServiceServicer):
         #opensfm configuration
 
         opensfm_config = opensfm_interface.setup_opensfm_config(self.datapath)
+        self.opensfm_config = opensfm_config
 
         #extract metadata 
 
@@ -248,8 +562,8 @@ class FileServer(sendFile_pb2_grpc.FileServiceServicer):
         #     if d['camera'] not in camera_models:
         #         camera = exif.camera_from_exif_metadata(d, opensfm_config)
         #         camera_models[d['camera']] = camera 
-        #     opensfm_interface.save_exif('/home/j/ODM-master/grpc_stages/node1/exif', each,d)
-        # opensfm_interface.save_camera_models('/home/j/ODM-master/grpc_stages/node1/', camera_models)
+             #opensfm_interface.save_exif('/home/j/ODM-master/grpc_stages/node1/exif', each,d)
+         #opensfm_interface.save_camera_models('/home/j/ODM-master/grpc_stages/node1/', camera_models)
         
         # #c  = opensfm_interface.extract_metadata_image('/home/j/ODM-master/grpc_stages/node1/DJI_0019.JPG', opensfm_config)
        
@@ -379,46 +693,287 @@ class FileServer(sendFile_pb2_grpc.FileServiceServicer):
 
         class Servicer(sendFile_pb2_grpc.FileServiceServicer):
             def __init__(self):
-                self.dataset_dir = './dataset'
                 self.tmp_file_name = './dataset2/IMG_2359.JPG'
 
 
-            async def upload(self, request_iterator, context):
+            def upload(self, request_iterator, context):
                 # client uploads images to this node
                 #request iterator is the file iterator through the chuncks
 
                 #self.tmp_file_name is the name to save the file chucks to 
                 nodeid = ''
                 filename = ''
+                folder = ''
                 for key, value in context.invocation_metadata():
                     
                     if(key == 'node-id'):
                         nodeid = value
                         #check if there is a dir for the node id
-                        system.mkdir_p(nodeid)
+                        system.mkdir_p('node'+str(node_id)+'/'+nodeid)
                     if key == 'filename':
                         filename = value
+                    if key == 'folder':
+                        folder = value
+                        print('node_id '+ str(node_id))
+                        system.mkdir_p('node'+str(node_id)+'/'+nodeid+'/'+folder)
 
                  
                     print('Received initial metadata: key=%s value=%s' % (key, value))
                 #print(os.path.dirname(os.path.abspath(__file__)))
                 if (nodeid != '' and filename  != ''):
-                    save_chunks_to_file(request_iterator, nodeid+'/images/'+filename)
+                    save_chunks_to_file(request_iterator, os.path.join('node'+str(node_id),nodeid, folder, filename))
 
-                    return sendFile_pb2.UploadStatus(Message = " Successul ", Code=sendFile_pb2.UploadStatusCode.Ok) 
+                    return sendFile_pb2.UploadStatus(message = " Successul ", code=sendFile_pb2.UploadStatusCode.Ok) 
                 else:
                     print('bad node id and bad filename')
                     # reply = sendFile_pb2.UploadStatus()
                     # reply.Message = " Failed "
                     # reply.c
-                    return sendFile_pb2.UploadStatus(Message = " Failure ", Code=sendFile_pb2.UploadStatusCode.Failed)
+                    return sendFile_pb2.UploadStatus(message = " Failure ", code=sendFile_pb2.UploadStatusCode.Failed)
 
             def download(self, request, context):
                 if request.name:
                     return get_file_chunks(self.tmp_file_name)
 
-            def compute(self, request, context):
+            def sendTask(self, request, context):
                 taskName = request.taskName
+                nodeid = request.nodeId
+                print('here in send Task ' + str(taskName) + ' ' + str(nodeid))
+
+                #node_path is the path of this node
+                print(node_path)
+                req_node_path = io.join_paths(node_path, str(nodeid))
+                print(req_node_path)
+                try:
+                    if(taskName == 'exif'):
+                        # check 
+                        
+                            print('run sfm extract metadata')
+                           
+                            image_path =   req_node_path + '/images'
+                            print('image path ' + str(image_path))
+                            is_complete = sfm_extract_metadata_list_of_images(image_path,opensfm_config, req_node_path)
+                            
+                            if (is_complete):
+                                print('is complete')
+                                #files to send back to the main node
+                                # #camera model.json and <nodeid>/ exif folder
+                                exif_folder_path = req_node_path + '/exif'
+                                print(exif_folder_path)
+                                
+                            
+                                exif_list =  os.listdir(exif_folder_path)
+                                print(exif_list)
+                                exif_list.append('camera_models.json')
+
+                                for each_file in exif_list:
+                                    folder_path = exif_folder_path
+                                    if each_file == 'camera_models.json':
+                                        folder_path = req_node_path
+
+            
+
+
+                                    
+                                    with open(io.join_paths(folder_path, each_file), 'rb') as f:
+                                        while True:
+                                            piece = f.read(CHUNK_SIZE)
+                                            if len(piece) == 0:
+                                                break
+                                            yield sendFile_pb2.NewChunk(filename=each_file  ,content=piece)
+
+                                #send camera model.json
+
+
+
+
+                                return
+                            else: 
+                                print('not complete')
+                    elif(taskName == 'detect_features'):
+
+                        print('detect features')
+                       
+                   
+                        image_path = req_node_path + '/images'
+                        print('image path ' + str(image_path))
+                        image_list = os.listdir(image_path)
+
+                        is_complete =sfm_detect_features(image_list,req_node_path ,opensfm_config)
+
+
+
+                        if(is_complete):
+
+                            detect_folder_path = req_node_path + '/features'
+                            print(detect_folder_path)
+
+
+                            _list =  os.listdir(detect_folder_path)
+                            print(_list)
+
+                            for each_file in _list:
+                                
+                                with open(io.join_paths(detect_folder_path, each_file), 'rb') as f:
+                                    while True:
+                                        piece = f.read(CHUNK_SIZE)
+                                        if len(piece) == 0:
+                                            break
+                                        yield sendFile_pb2.NewChunk(filename=each_file  ,content=piece)
+
+                            return
+
+
+
+
+
+                    elif(taskName == 'feature_matching'):
+
+                   
+                        image_path =   req_node_path + '/images'
+                        print('image path ' + str(image_path))
+                        image_list =os.listdir(image_path)
+
+                        is_complete = sfm_feature_matching(req_node_path, image_list, image_list, opensfm_config)
+                        
+
+                        if(is_complete):
+
+                            detect_folder_path = req_node_path + '/features'
+                            print(detect_folder_path)
+
+
+                            _list =  os.listdir(detect_folder_path)
+                            print(_list)
+
+                            for each_file in _list:
+                                
+                                with open(io.join_paths(detect_folder_path, each_file), 'rb') as f:
+                                    while True:
+                                        piece = f.read(CHUNK_SIZE)
+                                        if len(piece) == 0:
+                                            break
+                                        yield sendFile_pb2.NewChunk(filename=each_file  ,content=piece)
+
+
+
+                        return
+                    elif(taskName == 'feature_match_pairs'):
+
+                        image_path =   req_node_path + '/images'
+                        
+                        print('image path ' + str(image_path))
+                        #image_list =os.listdir(image_path)
+                        pair1 = request.feature_pair.pair1
+                        pair2 = request.feature_pair.pair2
+
+                        image_list = [pair1, pair2]
+
+                        print('pairs ' + str(pair1) + ' ' + str(pair2))
+
+                        pairs_matches = sfm_feature_matching_pairs(req_node_path, image_list , image_list, opensfm_config)
+                       
+
+                        print('here in main taskName')
+                        print(pairs_matches)
+                        filename = pair1+'-'+pair2
+
+
+                        # save pair matches in a file 
+                        # send it to client
+
+                        opensfm_interface.save_matches(req_node_path, filename, pairs_matches)
+
+                        detect_folder_path = req_node_path + '/matches'
+                        with open(io.join_paths(detect_folder_path, filename+'_matches.pkl.gz'), 'rb') as f:
+                                    while True:
+                                        piece = f.read(CHUNK_SIZE)
+                                        if len(piece) == 0:
+                                            break
+                                        yield sendFile_pb2.NewChunk(filename=filename+'_matches.pkl.gz'  ,content=piece)
+
+
+                        return 
+
+                        
+
+
+                       
+
+
+                        
+                    
+                    elif(taskName == 'create_tracks'):
+
+                        print('create_tracks')
+                        image_path =   req_node_path + '/images'
+                        print('image path ' + str(image_path))
+                        image_list = os.listdir(image_path)
+
+                        sfm_create_tracks(req_node_path, image_list, opensfm_config)
+
+                    
+                    
+                    elif(taskName == 'opensfm_reconstruction'):
+
+                        sfm_opensfm_reconstruction(req_node_path, opensfm_config)
+                        
+                        return 
+                   
+                    elif(taskName == 'undistort_image'):
+
+                        sfm_undistort_image(req_node_path, opensfm_config)
+
+                        return 
+                    elif(taskName == 'export_visualsfm'):
+
+                        sfm_export_visual_sfm(req_node_path, opensfm_config)
+                        return
+                    elif(taskName == 'compute_depthmaps'):
+                        sfm_compute_depthmaps(req_node_path, opensfm_config)
+                        return
+                    elif(taskName == 'dense_reconstruction'):
+                        mve_dense_reconstruction(req_node_path)
+                        return
+                    elif(taskName == 'makescene_function'):
+                        mve_makescene_function(req_node_path, 2)
+                        return
+                    elif(taskName == 'scene2pset'):
+                        mve_scene2pset_function(req_node_path, 2)
+                        return
+                    elif(taskName == 'cleanmesh'):
+                        mve_cleanmesh_function(req_node_path, 2)
+                        return
+                    elif(taskName == 'odm_filterpoints'):
+                        odm_filterpoints_function(req_node_path,2)
+                        return
+                    elif(taskName == 'odm_mesh'):
+                        odm_mesh_function(req_node_path, 2)
+                        return
+                    elif(taskName == 'odm_texturing'):
+                        odm_texturing_function(req_node_path)
+                        return
+                    
+                    
+    
+
+                except Exception as e:
+                        print(e.message)
+                        print(traceback.print_exc())
+
+                        return
+
+                            
+
+                    
+
+
+
+
+
+
+
+
 
                 #metadata use image name 
                 #use node id 
@@ -443,9 +998,12 @@ class FileServer(sendFile_pb2_grpc.FileServiceServicer):
                 
 
 
-                return 0
+                
 
-        self.server = aio.server()
+        self.server = grpc.server(futures.ThreadPoolExecutor(max_workers=4), options = [
+            ('grpc.max_send_message_length', 50 * 1024 * 1024),
+            ('grpc.max_receive_message_length', 50 * 1024 * 1024)
+        ])
 
         #self.server = grpc.server(futures.ThreadPoolExecutor(max_workers=1))
         sendFile_pb2_grpc.add_FileServiceServicer_to_server(Servicer(), self.server)
@@ -480,6 +1038,7 @@ class FileServer(sendFile_pb2_grpc.FileServiceServicer):
         # port 50002
 
     def start(self, port):
+        print(port)
         self.server.add_insecure_port('[::]:'+str(port))
         self.server.start()
 

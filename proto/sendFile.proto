@@ -8,17 +8,29 @@ package uploadFile;
   
 service FileService {
     rpc upload(stream Chunk) returns (UploadStatus) {}
-    rpc sendTask(Task) returns (TaskResponse) {}
+    rpc sendTask(Task) returns (stream NewChunk) {}
+    rpc bidupload(stream Chunk) returns (stream NewChunk) {}
 }
 
 message Task {
     string taskName = 1;
     string nodeId = 2;
+    Pair feature_pair = 3;
+
+}
+message Pair {
+    string pair1 = 1;
+    string pair2 = 2;
 }
 
 message TaskResponse {
     string taskName = 1;
     string nodeId = 2;
+}
+
+message NewChunk {
+    string filename = 1;
+    bytes content = 2;
 }
 
 message Chunk {

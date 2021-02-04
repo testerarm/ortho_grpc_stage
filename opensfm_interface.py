@@ -235,6 +235,8 @@ def load_opensfm_config(filepath):
 
 def extract_metadata_image(image_path, opensfm_config):
     # EXIF data in Image
+    print(' extract meta from path: ' + str(image_path))
+
     d = exif.extract_exif_from_file(open_image_file(image_path))
 
     # Override projection type if needed (Use auto projection type)

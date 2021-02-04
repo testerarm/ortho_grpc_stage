@@ -13,6 +13,8 @@ from opensfm_modified import new_feature_loader
 
 import opensfm_interface
 
+import traceback
+
 logger = logging.getLogger(__name__)
 
 
@@ -264,65 +266,74 @@ def match_candidates_from_metadata(file_path ,images_ref, images_cand, exifs, op
     Returns a list of pairs (im1, im2) such that (im1 in images_ref) is true.
     Returned pairs are unique given that (i, j) == (j, i).
     """
-    max_distance = opensfm_config['matching_gps_distance']
-    gps_neighbors = opensfm_config['matching_gps_neighbors']
-    time_neighbors = opensfm_config['matching_time_neighbors']
-    order_neighbors = opensfm_config['matching_order_neighbors']
-    bow_neighbors = opensfm_config['matching_bow_neighbors']
-    bow_gps_distance = opensfm_config['matching_bow_gps_distance']
-    bow_gps_neighbors = opensfm_config['matching_bow_gps_neighbors']
-    bow_other_cameras = opensfm_config['matching_bow_other_cameras']
-    vlad_neighbors = opensfm_config['matching_vlad_neighbors']
-    vlad_gps_distance = opensfm_config['matching_vlad_gps_distance']
-    vlad_gps_neighbors = opensfm_config['matching_vlad_gps_neighbors']
-    vlad_other_cameras = opensfm_config['matching_vlad_other_cameras']
 
-    if not opensfm_interface.reference_lla_exists(file_path):
-        opensfm_interface.invent_reference_lla(file_path, images_cand+images_ref)
-    reference = opensfm_interface.load_reference(file_path)
+    try:
 
-    if not all(map(has_gps_info, exifs.values())):
-        if gps_neighbors != 0:
-            logger.warn("Not all images have GPS info. "
-                        "Disabling matching_gps_neighbors.")
-        gps_neighbors = 0
-        max_distance = 0
+        max_distance = opensfm_config['matching_gps_distance']
+        gps_neighbors = opensfm_config['matching_gps_neighbors']
+        time_neighbors = opensfm_config['matching_time_neighbors']
+        order_neighbors = opensfm_config['matching_order_neighbors']
+        bow_neighbors = opensfm_config['matching_bow_neighbors']
+        bow_gps_distance = opensfm_config['matching_bow_gps_distance']
+        bow_gps_neighbors = opensfm_config['matching_bow_gps_neighbors']
+        bow_other_cameras = opensfm_config['matching_bow_other_cameras']
+        vlad_neighbors = opensfm_config['matching_vlad_neighbors']
+        vlad_gps_distance = opensfm_config['matching_vlad_gps_distance']
+        vlad_gps_neighbors = opensfm_config['matching_vlad_gps_neighbors']
+        vlad_other_cameras = opensfm_config['matching_vlad_other_cameras']
 
-    images_ref.sort()
+        if not opensfm_interface.reference_lla_exists(file_path):
+            opensfm_interface.invent_reference_lla(file_path, images_cand+images_ref)
+        reference = opensfm_interface.load_reference(file_path)
 
-    if max_distance == gps_neighbors == time_neighbors == order_neighbors == bow_neighbors == vlad_neighbors == 0:
-        # All pair selection strategies deactivated so we match all pairs
-        d = set()
-        t = set()
-        o = set()
-        b = set()
-        v = set()
-        pairs = set([tuple(sorted([i, j])) for i in images_ref for j in images_cand])
-    else:
-        d = match_candidates_by_distance(images_ref, images_cand, exifs, reference,
-                                         gps_neighbors, max_distance)
-        t = match_candidates_by_time(images_ref, images_cand, exifs, time_neighbors)
-        o = match_candidates_by_order(images_ref, images_cand, order_neighbors)
-        b = match_candidates_with_bow(file_path+'/features', opensfm_config, images_ref, images_cand,
-                                      exifs, reference, bow_neighbors,
-                                      bow_gps_distance, bow_gps_neighbors,
-                                      bow_other_cameras)
-        v = match_candidates_with_vlad(opensfm_config, images_ref, images_cand,
-                                       exifs, reference, vlad_neighbors,
-                                       vlad_gps_distance, vlad_gps_neighbors,
-                                       vlad_other_cameras)
-        pairs = d | t | o | set(b) | set(v)
+        if not all(map(has_gps_info, exifs.values())):
+            if gps_neighbors != 0:
+                logger.warn("Not all images have GPS info. "
+                            "Disabling matching_gps_neighbors.")
+            gps_neighbors = 0
+            max_distance = 0
 
-    pairs = ordered_pairs(pairs, images_ref)
+        images_ref.sort()
 
-    report = {
-        "num_pairs_distance": len(d),
-        "num_pairs_time": len(t),
-        "num_pairs_order": len(o),
-        "num_pairs_bow": len(b),
-        "num_pairs_vlad": len(v),
-    }
-    return pairs, report
+        if max_distance == gps_neighbors == time_neighbors == order_neighbors == bow_neighbors == vlad_neighbors == 0:
+            # All pair selection strategies deactivated so we match all pairs
+            d = set()
+            t = set()
+            o = set()
+            b = set()
+            v = set()
+            pairs = set([tuple(sorted([i, j])) for i in images_ref for j in images_cand])
+        else:
+            d = match_candidates_by_distance(images_ref, images_cand, exifs, reference,
+                                            gps_neighbors, max_distance)
+            t = match_candidates_by_time(images_ref, images_cand, exifs, time_neighbors)
+            o = match_candidates_by_order(images_ref, images_cand, order_neighbors)
+            b = match_candidates_with_bow(file_path+'/features', opensfm_config, images_ref, images_cand,
+                                        exifs, reference, bow_neighbors,
+                                        bow_gps_distance, bow_gps_neighbors,
+                                        bow_other_cameras)
+            v = match_candidates_with_vlad(opensfm_config, images_ref, images_cand,
+                                        exifs, reference, vlad_neighbors,
+                                        vlad_gps_distance, vlad_gps_neighbors,
+                                        vlad_other_cameras)
+            pairs = d | t | o | set(b) | set(v)
+
+        pairs = ordered_pairs(pairs, images_ref)
+
+        report = {
+            "num_pairs_distance": len(d),
+            "num_pairs_time": len(t),
+            "num_pairs_order": len(o),
+            "num_pairs_bow": len(b),
+            "num_pairs_vlad": len(v),
+        }
+        #print('in new pairs selection')
+        #print(pairs)
+        return pairs, report
+    except Exception as e:
+        print('exception')
+        print(e.message)
+        print(traceback.print_exc())
 
 
 def bow_distances(image, other_images, histograms):

@@ -37,12 +37,29 @@ def match_images(file_path, ref_images, cand_images, opensfm_config):
     exifs = {im: opensfm_interface.load_exif(file_path,im) for im in all_images}
 
     # Generate pairs for matching
+
+    # generate pairs for matching
+    # list of tuples
     pairs, preport = new_pairs_selection.match_candidates_from_metadata( file_path, 
         ref_images, cand_images, exifs, opensfm_config)
 
-    # Match them !
-    return match_images_with_pairs(file_path ,opensfm_config, exifs, ref_images, pairs), preport
 
+    #print('printing pairs')
+    #print(pairs)
+    #print()
+    #print()
+    #exit(1)
+
+    # Match them !
+    ret = match_images_with_pairs(file_path ,opensfm_config, exifs, ref_images, pairs), preport
+
+    #print('ret')
+    #print(ret)
+    #print()
+    #print()
+    #exit(1)
+
+    return ret
 
 def match_images_with_pairs(file_path,opensfm_config, exifs, ref_images, pairs):
     """ Perform pair matchings given pairs. """
@@ -127,7 +144,15 @@ def save_matches(file_path, images_ref, matched_pairs):
     for (im1, im2), m in matched_pairs.items():
         matches_per_im1[im1][im2] = m
 
+    print(matches_per_im1)
+
     for im1, im1_matches in matches_per_im1.items():
+        
+        print(im1)
+        print('save 2')
+        print(im1_matches)
+        
+
         opensfm_interface.save_matches(file_path,im1, im1_matches)
 
 

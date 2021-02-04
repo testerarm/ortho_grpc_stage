@@ -1432,6 +1432,7 @@ def incremental_reconstruction(file_path, graph, opensfm_config):
     chrono.lap('compute_image_pairs')
     report['num_candidate_image_pairs'] = len(pairs)
     report['reconstructions'] = []
+    print('length of pairs for reconstruction: ' + str(len(pairs)))
     for im1, im2 in pairs:
         if im1 in remaining_images and im2 in remaining_images:
             rec_report = {}
@@ -1439,8 +1440,9 @@ def incremental_reconstruction(file_path, graph, opensfm_config):
             tracks, p1, p2 = common_tracks[im1, im2]
             reconstruction, graph_inliers, rec_report['bootstrap'] = bootstrap_reconstruction(file_path,opensfm_config,
                  graph, camera_priors, im1, im2, p1, p2)
-
+            print('im1: ' + im1 + ' im2: ' + im2)
             if reconstruction:
+                print(' reconstruction is true ')
                 remaining_images.remove(im1)
                 remaining_images.remove(im2)
                 reconstruction, rec_report['grow'] = grow_reconstruction(file_path,

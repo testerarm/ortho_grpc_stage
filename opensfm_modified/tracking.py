@@ -31,12 +31,25 @@ def load_matches(file_path, images):
     matches = {}
     for im1 in images:
         try:
+            #print(im1)
             im1_matches = opensfm_interface.load_matches(file_path,im1)
+            #print('here')
+            #print(im1_matches)
+            #print('here')
+          
         except IOError:
             continue
+
         for im2 in im1_matches:
             if im2 in images:
                 matches[im1, im2] = im1_matches[im2]
+        
+            
+                
+
+    print('matches')
+    print()
+    print(matches)
     return matches
 
 
@@ -59,6 +72,7 @@ def create_tracks_graph(features, colors, matches, config):
     min_length = config['min_track_length']
     tracks = [t for t in sets.values() if _good_track(t, min_length)]
     logger.debug('Good tracks: {}'.format(len(tracks)))
+    print('Good tracks: ' + str(len(tracks)))
 
     tracks_graph = nx.Graph()
     for track_id, track in enumerate(tracks):
