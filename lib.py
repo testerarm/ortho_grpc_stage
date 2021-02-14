@@ -9,8 +9,8 @@ import shutil
 from concurrent import futures
 from concurrent.futures import ThreadPoolExecutor
 
-import faulthandler
-faulthandler.enable()
+# import faulthandler
+# faulthandler.enable()
 
 
 import sys
