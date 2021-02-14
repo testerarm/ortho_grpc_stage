@@ -724,6 +724,8 @@ def two_view_reconstruction_general(p1, p2, camera1, camera2,
 def bootstrap_reconstruction(file_path,opensfm_config, graph, camera_priors, im1, im2, p1, p2):
     """Start a reconstruction using two shots."""
     logger.info("Starting reconstruction with {} and {}".format(im1, im2))
+
+    print(' start  bootstrap reconstruction ' + str(im1) + ' ' + str(im2))
     report = {
         'image_pair': (im1, im2),
         'common_tracks': len(p1),
@@ -1433,6 +1435,12 @@ def incremental_reconstruction(file_path, graph, opensfm_config):
     report['num_candidate_image_pairs'] = len(pairs)
     report['reconstructions'] = []
     print('length of pairs for reconstruction: ' + str(len(pairs)))
+    count = 1
+
+    print(' remaining images ')
+    print(remaining_images)
+    print(len(remaining_images))
+
     for im1, im2 in pairs:
         if im1 in remaining_images and im2 in remaining_images:
             rec_report = {}
@@ -1440,7 +1448,8 @@ def incremental_reconstruction(file_path, graph, opensfm_config):
             tracks, p1, p2 = common_tracks[im1, im2]
             reconstruction, graph_inliers, rec_report['bootstrap'] = bootstrap_reconstruction(file_path,opensfm_config,
                  graph, camera_priors, im1, im2, p1, p2)
-            print('im1: ' + im1 + ' im2: ' + im2)
+            print('im1: ' + str(im1) + ' im2: ' + str(im2) + ' count ' + str(count))
+            
             if reconstruction:
                 print(' reconstruction is true ')
                 remaining_images.remove(im1)
@@ -1452,6 +1461,7 @@ def incremental_reconstruction(file_path, graph, opensfm_config):
                                          key=lambda x: -len(x.shots))
                 rec_report['stats'] = compute_statistics(reconstruction, graph_inliers)
                 logger.info(rec_report['stats'])
+            count+=1
 
     for k, r in enumerate(reconstructions):
         logger.info("Reconstruction {}: {} images, {} points".format(

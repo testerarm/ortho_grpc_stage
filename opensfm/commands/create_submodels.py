@@ -54,7 +54,7 @@ class Command:
 
             lat = exif['gps']['latitude']
             lon = exif['gps']['longitude']
-            ills.append((image, lat, create_submodelslon))
+            ills.append((image, lat, lon))
 
         meta_data.create_image_list(ills)
 

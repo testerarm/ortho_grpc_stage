@@ -48,7 +48,7 @@ class UndistortCommand:
             default='undistorted',
         )
 
-    def run(self, file_path, opensfm_config):
+    def run(self, file_path, opensfm_config, self_compute=False, self_path=''):
         udata = opensfm_interface.UndistortedDataSet(file_path,opensfm_config, 'undistorted')
         #data = dataset.DataSet(args.dataset)
         #udata = dataset.UndistortedDataSet(data, args.output)
@@ -60,9 +60,9 @@ class UndistortCommand:
 
         if reconstructions:
             r = reconstructions[0]
-            self.undistort_reconstruction(graph, r, opensfm_config, udata, file_path)
+            self.undistort_reconstruction(graph, r, opensfm_config, udata, file_path, self_compute, self_path)
 
-    def undistort_reconstruction(self, graph, reconstruction, opensfm_config, udata, file_path):
+    def undistort_reconstruction(self, graph, reconstruction, opensfm_config, udata, file_path, self_compute, self_path):
         urec = types.Reconstruction()
         urec.points = reconstruction.points
         ugraph = nx.Graph()
@@ -96,19 +96,24 @@ class UndistortCommand:
 
         arguments = []
         for shot in reconstruction.shots.values():
-            arguments.append((shot, undistorted_shots[shot.id], opensfm_config, udata, file_path, self.imageFilter))
+            arguments.append((shot, undistorted_shots[shot.id], opensfm_config, udata, file_path, self.imageFilter, self_compute, self_path))
 
         processes = opensfm_config['processes']
         parallel_map(undistort_image_and_masks, arguments, processes)
 
 
 def undistort_image_and_masks(arguments):
-    shot, undistorted_shots, opensfm_config, udata, file_path, imageFilter = arguments
+    shot, undistorted_shots, opensfm_config, udata, file_path, imageFilter, self_compute, self_path = arguments
     log.setup()
     logger.debug('Undistorting image {}'.format(shot.id))
 
-    # Undistort image
-    image = opensfm_interface.load_image(os.path.join(file_path, 'images', shot.id), unchanged=True, anydepth=True)
+    # Undistort 
+    image = None
+    if self_compute:
+        image = opensfm_interface.load_image(os.path.join(self_path, 'images', shot.id), unchanged=True, anydepth=True)
+
+    else:
+        image = opensfm_interface.load_image(os.path.join(file_path, 'images', shot.id), unchanged=True, anydepth=True)
     if image is not None:
         if imageFilter is not None:
             image = imageFilter(shot.id, image)
@@ -116,6 +121,7 @@ def undistort_image_and_masks(arguments):
         undistorted = undistort_image(shot, undistorted_shots, image,
                                       cv2.INTER_AREA, max_size)
         for k, v in undistorted.items():
+            print('k value in undistored images: '+ str(k))
             udata.save_undistorted_image(k, v)
 
     # Undistort mask
@@ -129,6 +135,9 @@ def undistort_image_and_masks(arguments):
 
     # Undistort segmentation
     segmentation = opensfm_interface.load_segmentation(file_path,shot.id)
+
+    
+
     if segmentation is not None:
         undistorted = undistort_image(shot, undistorted_shots, segmentation,
                                       cv2.INTER_NEAREST, 1e9)
@@ -136,7 +145,12 @@ def undistort_image_and_masks(arguments):
             udata.save_undistorted_segmentation(k, v)
 
     # Undistort detections
-    detection = opensfm_interface.load_detection(file_path,shot.id)
+    detection = None
+    if self_compute:
+        detection = opensfm_interface.load_detection(self_path,shot.id)
+    else:
+        detection = opensfm_interface.load_detection(file_path,shot.id)
+
     if detection is not None:
         undistorted = undistort_image(shot, undistorted_shots, detection,
                                       cv2.INTER_NEAREST, 1e9)

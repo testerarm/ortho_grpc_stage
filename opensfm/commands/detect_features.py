@@ -22,7 +22,7 @@ class Command:
 
     def run(self, args):
         data = dataset.DataSet(args.dataset)
-        print(args.dataset)
+        #print(args.dataset)
         images = data.images()
 
         arguments = [(image, data) for image in images]
@@ -54,9 +54,9 @@ class Command:
 
 def detect(args):
     image, data = args
-    print('detect')
-    print(image)
-    print(data)
+    #print('detect')
+    #print(image)
+    #print(data)
 
     log.setup()
 

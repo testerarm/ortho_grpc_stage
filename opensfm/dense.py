@@ -16,10 +16,14 @@ from opensfm import tracking
 from opensfm.context import parallel_map
 
 
+import opensfm_interface
+import gzip
+
+
 logger = logging.getLogger(__name__)
 
 
-def compute_depthmaps(data, graph, reconstruction):
+def compute_depthmaps(data, graph, reconstruction, file_pathx = '', self_compute=False, self_path=''):
     """Compute and refine depthmaps for all shots.
 
     Args:
@@ -46,12 +50,39 @@ def compute_depthmaps(data, graph, reconstruction):
         arguments.append((data, neighbors[shot.id], mind, maxd, shot))
     parallel_map(compute_depthmap_catched, arguments, processes)
 
+
+
+
+
+    print('raw done')
+
+    # data_shot = {}
+    # for shot in reconstruction.shots.values():
+    #     if len(neighbors[shot.id]) <= 1:
+    #         continue
+    #     ret = data.load_raw_depthmap(shot.id)
+    #     data_shot[shot.id] = ret
+
+    # print('raw data done')
+    # print(data_shot)
+
+    # exit(1)
+
+        
+
+
+
+
+
     arguments = []
     for shot in reconstruction.shots.values():
         if len(neighbors[shot.id]) <= 1:
             continue
-        arguments.append((data, neighbors[shot.id], shot))
+        arguments.append((data, neighbors[shot.id], shot,  file_pathx , self_compute, self_path))
     parallel_map(clean_depthmap_catched, arguments, processes)
+
+
+    print(' clean done')
 
     arguments = []
     for shot in reconstruction.shots.values():
@@ -124,6 +155,10 @@ def compute_depthmap(arguments):
     neighbor_ids = [i.id for i in neighbors[1:]]
     data.save_raw_depthmap(shot.id, depth, plane, score, nghbr, neighbor_ids)
 
+    #load
+    #print('load the raw depthmap ')
+    #data.load_raw_depthmap(shot.id)
+
     if data.config['depthmap_save_debug_files']:
         image = data.load_undistorted_image(shot.id)
         image = scale_down_image(image, depth.shape[1], depth.shape[0])
@@ -155,7 +190,7 @@ def clean_depthmap(arguments):
     """Clean depthmap by checking consistency with neighbors."""
     log.setup()
 
-    data, neighbors, shot = arguments
+    data, neighbors, shot ,file_pathx, self_compute, self_path = arguments
 
     if data.clean_depthmap_exists(shot.id):
         logger.info("Using precomputed clean depthmap {}".format(shot.id))
@@ -165,11 +200,25 @@ def clean_depthmap(arguments):
     dc = csfm.DepthmapCleaner()
     dc.set_same_depth_threshold(data.config['depthmap_same_depth_threshold'])
     dc.set_min_consistent_views(data.config['depthmap_min_consistent_views'])
-    add_views_to_depth_cleaner(data, neighbors, dc)
+    add_views_to_depth_cleaner(data, neighbors, dc , self_compute)
     depth = dc.clean()
 
     # Save and display results
-    raw_depth, raw_plane, raw_score, raw_nghbr, nghbrs = data.load_raw_depthmap(shot.id)
+    get_raw = None
+    if self_compute:
+        udata   = opensfm_interface.UndistortedDataSet(data.path, data.config, 'undistorted')
+        get_raw = udata.load_raw_depthmap(shot.id)
+
+    else:
+        get_raw = data.load_raw_depthmap(shot.id)
+
+    print('here in for data load get raw depth map')
+
+
+    raw_depth, raw_plane, raw_score, raw_nghbr, nghbrs = get_raw
+    
+    #raw_depth, raw_plane, raw_score, raw_nghbr, nghbrs = data.load_raw_depthmap(shot.id)
+
     data.save_clean_depthmap(shot.id, depth, raw_plane, raw_score)
 
     if data.config['depthmap_save_debug_files']:
@@ -268,11 +317,29 @@ def add_views_to_depth_estimator(data, neighbors, de):
         de.add_view(K, R, t, image, mask)
 
 
-def add_views_to_depth_cleaner(data, neighbors, dc):
+def add_views_to_depth_cleaner(data, neighbors, dc, self_compute = False):
+    
+    da = data
+
+   
+
+
+
     for shot in neighbors:
         if not data.raw_depthmap_exists(shot.id):
             continue
-        depth, plane, score, nghbr, nghbrs = data.load_raw_depthmap(shot.id)
+
+
+       # if self_compute:
+            #print('self compute')
+            #da   = opensfm_interface.UndistortedDataSet(data.path, data.config, 'undistorted')
+            #udata = opensfm_interface.UndistortedDataSet(data.path, data.config, 'undistorted')
+            #print(shot.id)
+            #ret = udata.load_raw_depthmap(shot.id)
+            #print('here')
+
+
+        depth, plane, score, nghbr, nghbrs = da.load_raw_depthmap(shot.id)
         height, width = depth.shape
         K = shot.camera.get_K_in_pixel_coordinates(width, height)
         R = shot.pose.get_rotation_matrix()

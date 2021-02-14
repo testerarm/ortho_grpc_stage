@@ -31,10 +31,12 @@ from opensfm import tracking
 
 
 import numpy as np
+import pickle
+import gzip
 
 from collections import defaultdict
 
-from opensfm_modified import undistort
+#from opensfm_modified import undistort
 from opensfm_modified import export_visualsfm
 from opensfm_modified import compute_depthmaps
 
@@ -46,9 +48,9 @@ from opensfm_modified import compute_depthmaps
 
 #### export visualsfm
 
-def open_compute_depthmaps(file_path, opensfm_config):
+def open_compute_depthmaps(file_path, opensfm_config, self_compute=False, self_path=''):
     cd = compute_depthmaps.ComputeDepthMapsCommand()
-    cd.run(file_path, opensfm_config)
+    cd.run(file_path, opensfm_config, self_compute, self_path)
 
 def open_export_visualsfm(file_path, opensfm_config):
     ev = export_visualsfm.VisualSFMCommand()
@@ -57,9 +59,7 @@ def open_export_visualsfm(file_path, opensfm_config):
 
 #### undistort
 
-def opensfm_undistort(file_path, opensfm_config):
-    u =undistort.UndistortCommand()
-    u.run(file_path, opensfm_config)
+
 
 #### detection
 
@@ -84,22 +84,36 @@ def _matches_path(file_path):
         """Return path of matches directory"""
         return os.path.join(file_path, 'matches')
 
-def _matches_file(file_path, image):
+def _matches_file(file_path, image, submodel=False):
         """File for matches for an image"""
+        #print('matches file')
+        #print(file_path)
+        #print(image)
+        #print('')
+        if submodel:
+            return os.path.join(file_path, '{}_matches.pkl.gz'.format(image))
+        #print(os.path.join(_matches_path(file_path), '{}_matches.pkl.gz'.format(image)))
+        #print('last ')
         return os.path.join(_matches_path(file_path), '{}_matches.pkl.gz'.format(image))
 
 def matches_exists(file_path, image):
         return os.path.isfile(_matches_file(file_path, image))
 
-def load_matches(file_path, image):
-        print('load matches: ' + file_path)
-        with gzip.open(_matches_file(file_path,image), 'rb') as fin:
+def load_matches(file_path, image, submodel=False):
+
+        #print('load matches: ' + file_path)
+        path = _matches_file(file_path,image, submodel)
+        #print('load file' + path)
+
+
+        with gzip.open(path, 'rb') as fin:
             matches = pickle.load(fin)
         return matches
 
 def save_matches(file_path, image, matches):
-        print('save matches: ' + file_path)
+        #print('save matches: ' + file_path)
         io.mkdir_p(_matches_path(file_path))
+        #print(' image: ' + image)
         with gzip.open(_matches_file(file_path,image), 'wb') as fout:
             pickle.dump(matches, fout)
 
@@ -164,14 +178,14 @@ def _exif_file(file_path, image):
 
 def load_exif(file_path, image):
         """Load pre-extracted image exif metadata."""
-        print('load exif: ' + file_path +'exif')
-        with io.open_rt(_exif_file(file_path+'exif', image)) as fin:
+        print('load exif: ' + str(os.path.join(file_path, 'exif')))
+        with io.open_rt(_exif_file(os.path.join(file_path, 'exif'), image)) as fin:
             return json.load(fin)
 
 
 def save_exif(file_path, image, data):
         io.mkdir_p(file_path)
-        print(file_path)
+        #print(file_path)
         with io.open_wt(_exif_file(file_path, image)) as fout:
             print('dump')
             io.json_dump(data, fout)
@@ -235,7 +249,7 @@ def load_opensfm_config(filepath):
 
 def extract_metadata_image(image_path, opensfm_config):
     # EXIF data in Image
-    print(' extract meta from path: ' + str(image_path))
+    #print(' extract meta from path: ' + str(image_path))
 
     d = exif.extract_exif_from_file(open_image_file(image_path))
 
@@ -636,11 +650,14 @@ class UndistortedDataSet(object):
     All data is stored inside a single folder which should be a subfolder
     of the base, distorted dataset.
     """
-    def __init__(self,file_path ,opensfm_config ,undistorted_subfolder):
+    def __init__(self,file_path ,opensfm_config ,undistorted_subfolder, self_compute=False, self_path=''):
         """Init dataset associated to a folder."""
         self.config = opensfm_config
         self.subfolder = undistorted_subfolder
         self.data_path = os.path.join(file_path, self.subfolder)
+        self.path = file_path
+        self.self_compute = self_compute
+        self.self_path = os.path.join(file_path, self.subfolder)
         print(self.data_path)
 
     def _undistorted_image_path(self):
@@ -667,7 +684,7 @@ class UndistortedDataSet(object):
         """Height and width of the undistorted image."""
         return io.image_size(self._undistorted_image_file(image))
 
-    def _undistorted_mask_path(self):
+    def _undistorted_mask_path(self):            
         return os.path.join(self.data_path, 'masks')
 
     def _undistorted_mask_file(self, image):
@@ -764,6 +781,7 @@ class UndistortedDataSet(object):
 
     def _depthmap_file(self, image, suffix):
         """Path to the depthmap file"""
+        #print('depthmap file path: '+ str(self._depthmap_path()) + " " + str(image + '.' + suffix))
         return os.path.join(self._depthmap_path(), image + '.' + suffix)
 
     def raw_depthmap_exists(self, image):
@@ -772,9 +790,16 @@ class UndistortedDataSet(object):
     def save_raw_depthmap(self, image, depth, plane, score, nghbr, nghbrs):
         io.mkdir_p(self._depthmap_path())
         filepath = self._depthmap_file(image, 'raw.npz')
+
+
+        
         np.savez_compressed(filepath, depth=depth, plane=plane, score=score, nghbr=nghbr, nghbrs=nghbrs)
+        
+        #self.load_raw_depthmap(image)
+
 
     def load_raw_depthmap(self, image):
+        #print('load raw: ' + str(self._depthmap_file(image, 'raw.npz')))
         o = np.load(self._depthmap_file(image, 'raw.npz'))
         return o['depth'], o['plane'], o['score'], o['nghbr'], o['nghbrs']
 
@@ -784,9 +809,13 @@ class UndistortedDataSet(object):
     def save_clean_depthmap(self, image, depth, plane, score):
         io.mkdir_p(self._depthmap_path())
         filepath = self._depthmap_file(image, 'clean.npz')
+
+        
         np.savez_compressed(filepath, depth=depth, plane=plane, score=score)
 
     def load_clean_depthmap(self, image):
+        #print('load clean depth map')
+
         o = np.load(self._depthmap_file(image, 'clean.npz'))
         return o['depth'], o['plane'], o['score']
 
@@ -802,11 +831,19 @@ class UndistortedDataSet(object):
                             detections=detections)
 
     def load_pruned_depthmap(self, image):
-        o = np.load(self._depthmap_file(image, 'pruned.npz'))
-        if 'detections' not in o:
-            return o['points'], o['normals'], o['colors'], o['labels'], np.zeros(o['labels'].shape)
-        else:
-            return o['points'], o['normals'], o['colors'], o['labels'], o['detections']
+        try:
+            print('load pruned depthmap')
+
+
+            o = np.load(self._depthmap_file(image, 'pruned.npz'))
+        
+            if 'detections' not in o:
+                return o['points'], o['normals'], o['colors'], o['labels'], np.zeros(o['labels'].shape)
+            else:
+                return o['points'], o['normals'], o['colors'], o['labels'], o['detections']
+        except Exception as e:
+            print(e.message)
+            print(image)
 
     def load_undistorted_tracks_graph(self):
         return load_tracks_graph(self.data_path ,os.path.join('tracks.csv'))

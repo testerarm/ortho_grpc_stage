@@ -4,6 +4,7 @@ import time
 import glob
 import grpc
 import traceback
+import shutil
 
 from concurrent import futures
 from concurrent.futures import ThreadPoolExecutor
@@ -49,6 +50,11 @@ import mvs_texturing
 import filterpoint_interface
 import mesh_interface
 
+import json
+
+
+from timeit import default_timer as timer
+
 
 dir_path = os.path.dirname(os.path.realpath(__file__))
 
@@ -57,6 +63,9 @@ print('dir path: ' + str(dir_path))
 
 def get_file_chunks(filename):
     print('file name in get file chucks ' + filename)
+    
+    
+
     with open(filename, 'rb') as f:
         while True:
             piece = f.read(CHUNK_SIZE)
@@ -68,6 +77,11 @@ def get_file_chunks(filename):
 
 def save_chunks_to_file(chunks, filename):
     print('save chuck size: ' + str(CHUNK_SIZE)+ ' Bytes  to filename: ' + str(filename))
+    
+    #print('/'.join(filename.split('/')[0:-1]))
+    system.mkdir_p('/'.join(filename.split('/')[0:-1]))
+    
+
 
     with open(filename, 'wb') as f:
         for chunk in chunks:
@@ -83,7 +97,7 @@ class FileClient:
         channel = grpc.insecure_channel(address) 
         self.stub = sendFile_pb2_grpc.FileServiceStub(channel)
 
-    def sendTask(self, taskName, this_nodeid, taskDir, pairs=[]):
+    def sendTask(self, taskName, this_nodeid, taskDir, pairs=[], compute_filepath = '', submodel_path = '', cluster_images = []):
 
 
         #send Task -> task name 
@@ -98,9 +112,15 @@ class FileClient:
             if (taskName == 'feature_match_pairs'):
                 task.feature_pair.pair1 = pairs[0]
                 task.feature_pair.pair2 = pairs[1]
+            if (taskName == 'create_tracks'):
+                task.compute_filenames.extend(cluster_images)
+
+
+                task.filename = submodel_path # name of submodel
 
             response = self.stub.sendTask(task)
-            response_dir = dir_path + '/node' + str(this_nodeid) + taskDir
+            response_dir = dir_path + '/node' + str(this_nodeid) + taskDir + submodel_path
+            print(' response dir ' + str(response_dir))
             if not os.path.isdir(response_dir):
                 system.mkdir_p(response_dir)
             print(response_dir)
@@ -154,15 +174,56 @@ class FileClient:
 
 
 
-    def upload(self, file_path, filename_list):
+    def upload(self, file_path, filename_list, submodel_file='', submodel_name = ''):
         
 
         #https://stackoverflow.com/questions/45071567/how-to-send-custom-header-metadata-with-python-grpc
         folder = file_path.split('/')[-1]
         print('folder ' + str(folder))
 
+        if submodel_file=='matches':
+            folder = os.path.join(folder, 'matches')
+            file_path = os.path.join(file_path, 'matches')
+            print(folder)
+            print(filename_list)
+
+            #test = opensfm_interface.load_matches(file_path, filename_list[1])
+            
+        if submodel_file=='feature':
+            folder = os.path.join(submodel_name)
+            #file_path = os.path.join(file_path, 'matches')
+
+        if submodel_file=='images':
+            folder = os.path.join(submodel_name, 'images')
+            file_path = os.path.join(file_path, 'images')
+
+        if submodel_file == 'exif':
+
+            folder = os.path.join(submodel_name, 'exif')
+            file_path = os.path.join(file_path, 'exif')
+            newlist = []
+            for i in range(len(filename_list)):
+                newlist.append(filename_list[i]+'.exif')
+                print(newlist[i])
+            filename_list = newlist
+        
+
+            print(filename_list)
+            
+        if submodel_file == 'camera_models':
+            folder = submodel_name
+
+
+        
+
+
+
 
         for each_file in filename_list:   
+                print('file')
+                print(io.join_paths(file_path, each_file))
+                print(each_file)
+                
                 chunks_generator = get_file_chunks(io.join_paths(file_path, each_file))
                 print('folder here before call ' + str(folder))
                 if(folder is None):
@@ -171,6 +232,8 @@ class FileClient:
                 call_future , call = self.stub.upload.with_call(chunks_generator, metadata=(('node-id', 'node'+self.nodeid),('filename', each_file), ('folder', folder)))
                 #call_future.add_done_callback(self.process_response)
                 #print('here in client upload')
+                #if matches == 'matches':
+                    
                 print(call_future)
         # else:
         #     images = glob.glob(in_file_name_or_file_path)
@@ -201,10 +264,12 @@ Server Compute Functions
 
 """""
 
-def sfm_extract_metadata_list_of_images(image_path,  opensfm_config, node_file_path):
+def sfm_extract_metadata_list_of_images(image_path,  opensfm_config, node_file_path, image_list = []):
 
     try:
         ref_image = os.listdir(image_path)
+        if (len(image_list) > 0):
+            ref_image = image_list
         print('inside sfm extract')
         print(str(ref_image))
         camera_models = {}
@@ -236,7 +301,7 @@ def sfm_extract_metadata_list_of_images(image_path,  opensfm_config, node_file_p
 
 
 
-def sfm_detect_features(ref_image, current_path, opensfm_config):
+def sfm_detect_features(ref_image, current_path, opensfm_config, image_list = []):
 
     """
      feature path 
@@ -245,6 +310,8 @@ def sfm_detect_features(ref_image, current_path, opensfm_config):
 
     """
     print('detect feature' + str(current_path))
+    if (len(image_list) > 0):
+            ref_image = image_list
 
     feature_path = current_path + '/features'
     
@@ -313,7 +380,7 @@ def sfm_feature_matching_pairs(current_path, ref_image, cand_images , opensfm_co
 
     return 
 
-def sfm_create_tracks(current_path, ref_image, opensfm_config, matches = {}):
+def sfm_create_tracks(current_path, ref_image, opensfm_config, matches = {}, self_compute=False, self_path=''):
     """
     
     path to features 
@@ -324,17 +391,37 @@ def sfm_create_tracks(current_path, ref_image, opensfm_config, matches = {}):
     """
 
     try: 
-        features, colors = tracking.load_features(current_path+'/features', ref_image, opensfm_config)
-        if bool(matches) is False:
-            matches = tracking.load_matches(current_path, ref_image)
-    
+        print('sfm create tracks: ' + str(current_path))
 
-        print('feature length: ' + str(len(features)))
+        if self_compute:
+            features, colors = tracking.load_features(self_path+'/features', ref_image, opensfm_config)
+            if bool(matches) is False:
+                matches = tracking.load_matches(self_path, ref_image)
+        
 
-        graph = tracking.create_tracks_graph(features, colors, matches,
-                                            opensfm_config)
+            print('feature length: ' + str(len(features)))
 
-        opensfm_interface.save_tracks_graph(graph, current_path)
+            graph = tracking.create_tracks_graph(features, colors, matches,
+                                                opensfm_config)
+
+
+            opensfm_interface.save_tracks_graph(graph, current_path)
+
+
+        else:
+
+            features, colors = tracking.load_features(current_path+'/features', ref_image, opensfm_config)
+            if bool(matches) is False:
+                matches = tracking.load_matches(current_path, ref_image)
+        
+
+            print('feature length: ' + str(len(features)))
+
+            graph = tracking.create_tracks_graph(features, colors, matches,
+                                                opensfm_config)
+
+
+            opensfm_interface.save_tracks_graph(graph, current_path)
     
     except Exception as e:
         print(traceback.print_exc())
@@ -343,13 +430,22 @@ def sfm_create_tracks(current_path, ref_image, opensfm_config, matches = {}):
     return True
 
 
-def sfm_opensfm_reconstruction(current_path, opensfm_config):
+def sfm_opensfm_reconstruction(current_path, opensfm_config, self_compute=False, self_path=''):
 
 
     try:
+
+
         graph = opensfm_interface.load_tracks_graph(current_path)
-        report, reconstructions = reconstruction.incremental_reconstruction(current_path, graph, opensfm_config)
-        opensfm_interface.save_reconstruction(current_path,reconstructions)
+
+        if self_compute:
+            report, reconstructions = reconstruction.incremental_reconstruction(self_path, graph, opensfm_config)
+            opensfm_interface.save_reconstruction(current_path,reconstructions)
+
+        else:
+
+            report, reconstructions = reconstruction.incremental_reconstruction(current_path, graph, opensfm_config)
+            opensfm_interface.save_reconstruction(current_path,reconstructions)
     except Exception as e:
         print(traceback.print_exc())
         return False
@@ -362,6 +458,8 @@ def sfm_max_undistort_image_size(current_path, image_path):
     from opendm import types
 
     ref_image = os.listdir(image_path)
+
+    # get the 
     
     try: 
         for each in ref_image:
@@ -370,7 +468,7 @@ def sfm_max_undistort_image_size(current_path, image_path):
     
         # get match image sizes
         outputs['undist_image_max_size'] = max(
-            gsd.image_max_size(photos, 5.0, current_path+'reconstruction.json'),
+            gsd.image_max_size(photos, 5.0, os.path.join(current_path,'reconstruction.json')),
             0.1
         )        
         # print(outputs)
@@ -379,23 +477,29 @@ def sfm_max_undistort_image_size(current_path, image_path):
 
         #
     except Exception as e:
+                        
         print(traceback.print_exc())
         return False
 
     return outputs['undist_image_max_size'] 
 
 
-def sfm_undistort_image(current_path, opensfm_config):
+def sfm_undistort_image(current_path, opensfm_config, self_compute=False, self_path=''):
     
     try:
-    
-        opensfm_interface.opensfm_undistort(current_path, opensfm_config)
+        import opensfm_undistort_command
+
+        if self_compute:
+            opensfm_undistort_command.opensfm_undistort(current_path, opensfm_config, self_compute, self_path)
+
+        else:
+            opensfm_undistort_command.opensfm_undistort(current_path, opensfm_config)
     except Exception as e:
         print(traceback.print_exc())
         return False
     return True
 
-def sfm_export_visual_sfm(current_path, opensfm_config):
+def sfm_export_visual_sfm(current_path, opensfm_config, self_compute=False, self_path=''):
 
 
     try:
@@ -408,10 +512,13 @@ def sfm_export_visual_sfm(current_path, opensfm_config):
     return 
 
 
-def sfm_compute_depthmaps(current_path, opensfm_config):
+def sfm_compute_depthmaps(current_path, opensfm_config, self_compute=False, self_path=''):
 
     try:
-        opensfm_interface.open_compute_depthmaps(current_path, opensfm_config)
+        if self_compute:
+            opensfm_interface.open_compute_depthmaps(current_path, opensfm_config, self_compute, self_path)
+        else:
+            opensfm_interface.open_compute_depthmaps(current_path, opensfm_config)
     except Exception as e:
         print(traceback.print_exc())
         return False
@@ -419,12 +526,19 @@ def sfm_compute_depthmaps(current_path, opensfm_config):
     return True 
 
 
-def mve_dense_reconstruction(current_path, max_concurrency):
+def mve_dense_reconstruction(current_path, max_concurrency, self_compute=False, self_path =''):
 
     try:
+
         mve_file_path = os.path.join(current_path,'mve')
-    
-        mve_interface.mve_dense_recon(sfm_max_undistort_image_size(current_path, os.path.join(current_path, 'images')), mve_file_path, max_concurrency)
+
+        max_image = None
+        if self_compute:
+            max_image = sfm_max_undistort_image_size(self_path, os.path.join(self_path, 'images'))
+        else:
+            max_image = sfm_max_undistort_image_size(current_path, os.path.join(current_path, 'images'))
+
+        mve_interface.mve_dense_recon(max_image, mve_file_path, max_concurrency)
     except Exception as e:
         print(traceback.print_exc())
         return False
@@ -432,11 +546,16 @@ def mve_dense_reconstruction(current_path, max_concurrency):
     return True
 
 
-def mve_makescene_function(current_path, max_concurrency):
+def mve_makescene_function(current_path, max_concurrency, self_compute=False, self_path=''):
 
     try: 
         mve_file_path =os.path.join(current_path,'mve')
+        if os.path.isdir(mve_file_path):
+            shutil.rmtree(mve_file_path)
+        print(mve_file_path)
         nvm_file = os.path.join(current_path,'undistorted', 'reconstruction.nvm')
+        print(nvm_file)
+        print('make scene function')
         mve_interface.mve_makescene(nvm_file, mve_file_path, max_concurrency)
     except Exception as e:
         print(traceback.print_exc())
@@ -445,12 +564,18 @@ def mve_makescene_function(current_path, max_concurrency):
     return True 
 
 
-def mve_scene2pset_function(current_path, max_concurrency):
+def mve_scene2pset_function(current_path, max_concurrency, self_compute=False, self_path='' ):
 
     try:
         mve_file_path = os.path.join(current_path,'mve')
         mve_model = io.join_paths(mve_file_path, 'mve_dense_point_cloud.ply')
-        mve_interface.mve_scene2pset(mve_file_path, mve_model,sfm_max_undistort_image_size(current_path, os.path.join(current_path, 'images')),max_concurrency)
+        max_image = None
+        if self_compute:
+            max_image = sfm_max_undistort_image_size(self_path, os.path.join(self_path, 'images'))
+        else:
+            max_image = sfm_max_undistort_image_size(current_path, os.path.join(current_path, 'images'))
+
+        mve_interface.mve_scene2pset(mve_file_path, mve_model,max_image,max_concurrency)
     except Exception as e:
         print(traceback.print_exc())
         return False
@@ -493,6 +618,9 @@ def odm_mesh_function(current_path, max_concurrency):
         filterpoint_cloud = io.join_paths(odm_filterpoints, "point_cloud.ply")
 
         odm_mesh_folder= os.path.join(current_path,'mesh')
+        if not os.path.isdir(odm_mesh_folder):
+            os.mkdir(odm_mesh_folder)
+
         odm_mesh_ply = io.join_paths(odm_mesh_folder, "odm_mesh.ply")
         mesh_interface.mesh_3d(odm_mesh_folder, odm_mesh_ply, filterpoint_cloud, max_concurrency)
     except Exception as e:
@@ -501,12 +629,16 @@ def odm_mesh_function(current_path, max_concurrency):
 
     return True
 
-def odm_texturing_function(current_path):
+def odm_texturing_function(current_path, submodel=False):
       
     try:   
         mvs_folder= os.path.join(current_path,'mvs')
-        odm_mesh_folder= cos.path.join(current_path,'mesh')
+        odm_mesh_folder= os.path.join(current_path,'mesh')
         odm_mesh_ply = io.join_paths(odm_mesh_folder, "odm_mesh.ply")
+       
+
+
+        
         nvm_file = os.path.join(current_path,'undistorted', 'reconstruction.nvm')
 
         mvs_texturing.mvs_texturing(odm_mesh_ply, mvs_folder, nvm_file)  
@@ -515,6 +647,31 @@ def odm_texturing_function(current_path):
         return False
 
     return True
+
+
+
+def write_json(data, filename):
+    with open(filename, 'w') as f:
+        json.dump(data, f, indent=4)
+
+def write_json_append(data, filename):
+    if not os.path.isfile(filename):
+        write_json(data, filename)
+    else:
+        with open(filename) as f:
+            old_data = {}
+            try:
+                old_data = json.load(f)
+            except Exception as e:
+                print(e.message)
+                pass
+            except:
+                pass
+            data.update(old_data)
+
+        write_json(data, filename)  
+
+
 
 
 
@@ -678,7 +835,7 @@ class FileServer(sendFile_pb2_grpc.FileServiceServicer):
 
         # filterpoint_interface.filter_points(odm_filterpoints, mve_model, filterpoint_cloud,2)
 
-        # #meshing stage
+        #meshing stage
         # odm_mesh_folder= '/home/j/ODM-master/grpc_stages/node1/mesh'
         # odm_mesh_ply = io.join_paths(odm_mesh_folder, "odm_mesh.ply")
         # mesh_interface.mesh_3d(odm_mesh_folder, odm_mesh_ply, filterpoint_cloud, 2)
@@ -745,6 +902,11 @@ class FileServer(sendFile_pb2_grpc.FileServiceServicer):
                 req_node_path = io.join_paths(node_path, str(nodeid))
                 print(req_node_path)
                 try:
+                    
+                    start_timer = timer()
+                    req_node_path_timer = os.path.join(req_node_path, 'compute_times.json')
+
+
                     if(taskName == 'exif'):
                         # check 
                         
@@ -755,6 +917,12 @@ class FileServer(sendFile_pb2_grpc.FileServiceServicer):
                             is_complete = sfm_extract_metadata_list_of_images(image_path,opensfm_config, req_node_path)
                             
                             if (is_complete):
+
+                                #write time into json file timer
+                                end_timer = timer()-start_timer
+                                write_json_append({req_node_path+'exif': end_timer}, req_node_path_timer)
+
+                                
                                 print('is complete')
                                 #files to send back to the main node
                                 # #camera model.json and <nodeid>/ exif folder
@@ -784,6 +952,12 @@ class FileServer(sendFile_pb2_grpc.FileServiceServicer):
 
                                 #send camera model.json
 
+                               
+
+                                shutil.rmtree(exif_folder_path)
+                                os.mkdir(exif_folder_path)
+
+
 
 
 
@@ -805,6 +979,12 @@ class FileServer(sendFile_pb2_grpc.FileServiceServicer):
 
                         if(is_complete):
 
+                            #write time into json file timer
+                            end_timer = timer()-start_timer
+                            write_json_append({req_node_path+'detect_features': end_timer}, req_node_path_timer)
+
+                         
+
                             detect_folder_path = req_node_path + '/features'
                             print(detect_folder_path)
 
@@ -821,7 +1001,14 @@ class FileServer(sendFile_pb2_grpc.FileServiceServicer):
                                             break
                                         yield sendFile_pb2.NewChunk(filename=each_file  ,content=piece)
 
-                            return
+
+
+                            #remove folder
+                            shutil.rmtree(detect_folder_path)
+                              
+
+
+                        return
 
 
 
@@ -833,13 +1020,15 @@ class FileServer(sendFile_pb2_grpc.FileServiceServicer):
                         image_path =   req_node_path + '/images'
                         print('image path ' + str(image_path))
                         image_list =os.listdir(image_path)
+                        detect_folder_path = req_node_path + '/features'
+
 
                         is_complete = sfm_feature_matching(req_node_path, image_list, image_list, opensfm_config)
                         
 
                         if(is_complete):
 
-                            detect_folder_path = req_node_path + '/features'
+                            
                             print(detect_folder_path)
 
 
@@ -855,6 +1044,10 @@ class FileServer(sendFile_pb2_grpc.FileServiceServicer):
                                             break
                                         yield sendFile_pb2.NewChunk(filename=each_file  ,content=piece)
 
+                            shutil.rmtree(detect_folder_path)
+                        #write time into json file timer
+                        end_timer = timer()-start_timer
+                        write_json_append({req_node_path+'feature_matching': end_timer}, req_node_path_timer)
 
 
                         return
@@ -884,6 +1077,12 @@ class FileServer(sendFile_pb2_grpc.FileServiceServicer):
 
                         opensfm_interface.save_matches(req_node_path, filename, pairs_matches)
 
+                        #write time into json file timer
+                        end_timer = timer()-start_timer
+                        write_json_append({req_node_path+'_feature_matching_pairs' + str(pair1) + '-' +str(pair2): end_timer}, req_node_path_timer)
+
+
+
                         detect_folder_path = req_node_path + '/matches'
                         with open(io.join_paths(detect_folder_path, filename+'_matches.pkl.gz'), 'rb') as f:
                                     while True:
@@ -891,7 +1090,8 @@ class FileServer(sendFile_pb2_grpc.FileServiceServicer):
                                         if len(piece) == 0:
                                             break
                                         yield sendFile_pb2.NewChunk(filename=filename+'_matches.pkl.gz'  ,content=piece)
-
+                       
+                        os.remove(io.join_paths(detect_folder_path, filename+'_matches.pkl.gz'))
 
                         return 
 
@@ -905,13 +1105,191 @@ class FileServer(sendFile_pb2_grpc.FileServiceServicer):
                     
                     elif(taskName == 'create_tracks'):
 
-                        print('create_tracks')
-                        image_path =   req_node_path + '/images'
-                        print('image path ' + str(image_path))
-                        image_list = os.listdir(image_path)
+                        print('create_tracks here in function 212')
 
-                        sfm_create_tracks(req_node_path, image_list, opensfm_config)
+                        timer_map = {}
 
+                        start = timer()
+                        # ex. submodel 1 , submodel 2, submodel 3
+                        compute_filename = request.filename
+
+                        print(compute_filename)
+
+                        # image file names
+                        compute_images = request.compute_filenames
+
+
+                        print(compute_images)
+
+                        submodel_path = os.path.join(req_node_path ,compute_filename)
+
+                        print(submodel_path)
+
+                        submodel_path_match = os.path.join(submodel_path, 'matches')
+
+                        submodel_matches = opensfm_interface.load_matches(submodel_path_match, compute_filename, True)
+
+                        sfm_create_tracks(submodel_path, compute_images, opensfm_config, submodel_matches)
+
+
+                        end = timer()
+                        sfm_create_tracks_timer = end - start
+
+                        start = timer()
+                        
+                        sfm_opensfm_reconstruction(submodel_path, opensfm_config)
+
+
+                        end = timer()
+                        sfm_opensfm_reconstruction_time = end - start
+
+                        start = timer()
+
+                        sfm_undistort_image(submodel_path, opensfm_config)
+
+                        end = timer()
+                        sfm_undistort_image_time = end - start
+
+
+                        start = timer()
+                        
+                        sfm_export_visual_sfm(submodel_path, opensfm_config)
+
+
+                        end = timer()
+                        sfm_export_visualsfm_time = end - start
+
+
+                        start = timer()
+
+                        sfm_compute_depthmaps(submodel_path, opensfm_config)
+
+
+                        end = timer()
+                        sfm_compute_depthmaps_time = end - start
+
+                        start = timer()
+
+                        max_concurrency = 4
+
+                        # delete from makescene
+
+                        mve_makescene_function(submodel_path, max_concurrency)
+
+
+
+                        end = timer()
+                        mve_makescene_function_time = end - start
+
+                        start = timer()
+
+                        mve_dense_reconstruction(submodel_path, max_concurrency)
+
+                        end = timer()
+                        mve_dense_reconstruction_time = end - start
+
+                        start = timer()
+
+                        mve_scene2pset_function(submodel_path, max_concurrency)
+
+                        end = timer()
+                        mve_mve_scene2pset_time = end - start
+
+                        start = timer()
+
+                        mve_cleanmesh_function(submodel_path,max_concurrency)
+
+                        end = timer()
+                        mve_mve_cleanmesh_time = end - start
+
+
+                        start = timer()
+
+
+                        odm_filterpoints_function(submodel_path, max_concurrency)
+
+
+                        end = timer()
+                        odm_filterpoint_time = end - start
+                        
+                        start = timer()
+
+
+                        odm_mesh_function(submodel_path,max_concurrency)
+
+                        end = timer()
+                        odm_mesh_time = end - start
+                        start = timer()
+
+
+                        odm_texturing_function(submodel_path,True)
+
+                        end = timer()
+                        odm_texturing_time = end - start
+
+                        nodeid = str(nodeid)
+                        timer_map['sfm_create_tracks_time-'+nodeid] = sfm_create_tracks_timer
+                        timer_map['sfm_open_reconstruction-'+nodeid] = sfm_opensfm_reconstruction_time
+                        timer_map['sfm_undistort-'+nodeid] = sfm_undistort_image_time
+                        timer_map['sfm_export_visualsfm-'+nodeid] = sfm_export_visualsfm_time
+                        timer_map['sfm_compute_depthmap-'+nodeid] = sfm_compute_depthmaps_time
+                        timer_map['mve_makescence_time-'+nodeid] = mve_makescene_function_time
+                        timer_map['mve_dense_recon_time-'+nodeid] = mve_dense_reconstruction_time
+                        timer_map['mve_scence2pset_time-'+nodeid] = mve_mve_scene2pset_time
+                        timer_map['mve_cleanmesh_time-'+nodeid] =  mve_mve_cleanmesh_time
+                        timer_map['odm_filerpoints-'+nodeid] =  odm_filterpoint_time
+                        timer_map['odm_mesh-'+nodeid] =  odm_mesh_time
+                        timer_map['odm_texturing-'+nodeid] =  odm_texturing_time
+
+
+                        #write time into json file timer
+                        write_json_append(timer_map, req_node_path_timer)
+
+                        print('Create Tracks Total Time: ' + str(sfm_create_tracks_timer))
+                        print('OpenSfm Reconstruction Total Time: ' + str(sfm_opensfm_reconstruction_time))
+                        print('OpenSfm Undistort Image Total Time: ' + str(sfm_undistort_image_time))
+                        print('OpenSfm Export Visual Sfm Total Time: ' + str(sfm_export_visualsfm_time))
+                        print('OpenSfm Compute DepthMaps Sfm Total Time: ' + str(sfm_compute_depthmaps_time))
+                        print('Mve Makescene Sfm Total Time: ' + str(mve_makescene_function_time))
+                        print('Mve Dense Reconstruction Sfm Total Time: ' + str(mve_dense_reconstruction_time))
+                        print('Mve Scene 2 Pset Sfm Total Time: ' + str(mve_mve_scene2pset_time))
+                        print('Mve Cleanmesh Sfm Total Time: ' + str(mve_mve_cleanmesh_time))
+                        print('ODM Filterpoints Total Time: ' + str(odm_filterpoint_time))
+                        print('ODM Mesh Total Time: ' + str(odm_mesh_time))
+                        print('ODM Texturing Total Time: ' + str(odm_texturing_time))
+
+
+                        
+
+                        # send mesh ply
+                        # send mesh dirty ply
+
+
+                        mesh_folder_path = submodel_path+ '/mesh'
+                        files = os.listdir(mesh_folder_path)
+                        more_files = os.listdir(os.path.join(submodel_path, 'mvs'))
+                        files = files+more_files
+
+                        for each in files:
+                            with open(io.join_paths(mesh_folder_path, each), 'rb') as f:
+                                        while True:
+                                            piece = f.read(CHUNK_SIZE)
+                                            if len(piece) == 0:
+                                                break
+                                            yield sendFile_pb2.NewChunk(filename=each  ,content=piece)
+
+
+                        print('after')
+
+                        #compute everything after tracks
+                        #print('create_tracks')
+                        #image_path =   req_node_path + '/images'
+                        #print('image path ' + str(image_path))
+                        #image_list = os.listdir(image_path)
+
+                        #sfm_create_tracks(req_node_path, image_list, opensfm_config)
+
+                        return
                     
                     
                     elif(taskName == 'opensfm_reconstruction'):

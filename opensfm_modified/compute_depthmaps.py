@@ -27,14 +27,16 @@ class ComputeDepthMapsCommand:
             action='store_true',
         )
 
-    def run(self, file_path, opensfm_config):
+    def run(self, file_path, opensfm_config, self_compute = False, self_path=''):
        # data = dataset.DataSet(args.dataset)
-        udata = opensfm_interface.UndistortedDataSet(file_path, opensfm_config, 'undistorted')
+        udata = opensfm_interface.UndistortedDataSet(file_path, opensfm_config, 'undistorted', self_compute, self_path)
         reconstructions = udata.load_undistorted_reconstruction()
         graph = udata.load_undistorted_tracks_graph()
 
      
         #opensfm_config['interactive'] = 
+        opensfm_config['interactive'] = ''
+
     
 
-        dense.compute_depthmaps(udata, graph, reconstructions[0])
+        dense.compute_depthmaps(udata, graph, reconstructions[0], file_path, self_compute, self_path)

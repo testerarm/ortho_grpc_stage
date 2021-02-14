@@ -8,7 +8,7 @@ import psutil
 
 from collections import namedtuple
 from networkx.algorithms import bipartite
-from opensfm.opensfm.large.lru_cache import lru_cache
+from opensfm.large.lru_cache import lru_cache
 
 from opensfm import align
 from opensfm import context
@@ -35,12 +35,12 @@ def kmeans(samples, nclusters, max_iter=100, attempts=20):
 
 
 def add_cluster_neighbors(positions, labels, centers, max_distance):
-    print('add cluster neighbors')
-    print(positions)
-    print(labels)
-    print(centers)
-    print(max_distance)
-    print('args for cluster neightbors')
+    # print('add cluster neighbors')
+    # print(positions)
+    # print(labels)
+    # print(centers)
+    # print(max_distance)
+    # print('args for cluster neightbors')
 
     reflla = np.mean(positions, 0)
     reference = geo.TopocentricConverter(reflla[0], reflla[1], 0)
@@ -49,25 +49,26 @@ def add_cluster_neighbors(positions, labels, centers, max_distance):
     for position in positions:
         x, y, z = reference.to_topocentric(position[0], position[1], 0)
         topocentrics.append([x, y])
-    print(topocentrics)
-    print('topocentrics')
+    #print(topocentrics)
+    #print('topocentrics')
     topocentrics = np.array(topocentrics)
     topo_tree = spatial.cKDTree(topocentrics)
-    print(topo_tree)
+    #print(topo_tree)
 
     clusters = []
     for label in np.arange(centers.shape[0]):
         cluster_indices = np.where(labels == label)[0]
-        print(cluster_indices)
+        #print(cluster_indices)
         neighbors = []
         for i in cluster_indices:
-            print(topocentrics[i])
+            #print(topocentrics[i])
             neighbors.extend(
                 topo_tree.query_ball_point(topocentrics[i], max_distance))
-        print(neighbors)
+        #print(neighbors)
         cluster = list(np.union1d(cluster_indices, neighbors))
         clusters.append(cluster)
 
+    #print(clusters)
     return clusters
 
 

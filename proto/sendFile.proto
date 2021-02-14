@@ -16,8 +16,10 @@ message Task {
     string taskName = 1;
     string nodeId = 2;
     Pair feature_pair = 3;
-
+    string filename = 4;
+    repeated string compute_filenames = 5;
 }
+
 message Pair {
     string pair1 = 1;
     string pair2 = 2;

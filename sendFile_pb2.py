@@ -20,7 +20,7 @@ DESCRIPTOR = _descriptor.FileDescriptor(
   syntax='proto3',
   serialized_options=b'\n\007ex.grpc\242\002\003HSW',
   create_key=_descriptor._internal_create_key,
-  serialized_pb=b'\n\x0esendFile.proto\x12\nuploadFile\"P\n\x04Task\x12\x10\n\x08taskName\x18\x01 \x01(\t\x12\x0e\n\x06nodeId\x18\x02 \x01(\t\x12&\n\x0c\x66\x65\x61ture_pair\x18\x03 \x01(\x0b\x32\x10.uploadFile.Pair\"$\n\x04Pair\x12\r\n\x05pair1\x18\x01 \x01(\t\x12\r\n\x05pair2\x18\x02 \x01(\t\"0\n\x0cTaskResponse\x12\x10\n\x08taskName\x18\x01 \x01(\t\x12\x0e\n\x06nodeId\x18\x02 \x01(\t\"-\n\x08NewChunk\x12\x10\n\x08\x66ilename\x18\x01 \x01(\t\x12\x0f\n\x07\x63ontent\x18\x02 \x01(\x0c\"\x18\n\x05\x43hunk\x12\x0f\n\x07\x63ontent\x18\x01 \x01(\x0c\"K\n\x0cUploadStatus\x12\x0f\n\x07message\x18\x01 \x01(\t\x12*\n\x04\x63ode\x18\x02 \x01(\x0e\x32\x1c.uploadFile.UploadStatusCode*3\n\x10UploadStatusCode\x12\x0b\n\x07Unknown\x10\x00\x12\x06\n\x02Ok\x10\x01\x12\n\n\x06\x46\x61iled\x10\x02\x32\xbc\x01\n\x0b\x46ileService\x12\x39\n\x06upload\x12\x11.uploadFile.Chunk\x1a\x18.uploadFile.UploadStatus\"\x00(\x01\x12\x36\n\x08sendTask\x12\x10.uploadFile.Task\x1a\x14.uploadFile.NewChunk\"\x00\x30\x01\x12:\n\tbidupload\x12\x11.uploadFile.Chunk\x1a\x14.uploadFile.NewChunk\"\x00(\x01\x30\x01\x42\x0f\n\x07\x65x.grpc\xa2\x02\x03HSWb\x06proto3'
+  serialized_pb=b'\n\x0esendFile.proto\x12\nuploadFile\"}\n\x04Task\x12\x10\n\x08taskName\x18\x01 \x01(\t\x12\x0e\n\x06nodeId\x18\x02 \x01(\t\x12&\n\x0c\x66\x65\x61ture_pair\x18\x03 \x01(\x0b\x32\x10.uploadFile.Pair\x12\x10\n\x08\x66ilename\x18\x04 \x01(\t\x12\x19\n\x11\x63ompute_filenames\x18\x05 \x03(\t\"$\n\x04Pair\x12\r\n\x05pair1\x18\x01 \x01(\t\x12\r\n\x05pair2\x18\x02 \x01(\t\"0\n\x0cTaskResponse\x12\x10\n\x08taskName\x18\x01 \x01(\t\x12\x0e\n\x06nodeId\x18\x02 \x01(\t\"-\n\x08NewChunk\x12\x10\n\x08\x66ilename\x18\x01 \x01(\t\x12\x0f\n\x07\x63ontent\x18\x02 \x01(\x0c\"\x18\n\x05\x43hunk\x12\x0f\n\x07\x63ontent\x18\x01 \x01(\x0c\"K\n\x0cUploadStatus\x12\x0f\n\x07message\x18\x01 \x01(\t\x12*\n\x04\x63ode\x18\x02 \x01(\x0e\x32\x1c.uploadFile.UploadStatusCode*3\n\x10UploadStatusCode\x12\x0b\n\x07Unknown\x10\x00\x12\x06\n\x02Ok\x10\x01\x12\n\n\x06\x46\x61iled\x10\x02\x32\xbc\x01\n\x0b\x46ileService\x12\x39\n\x06upload\x12\x11.uploadFile.Chunk\x1a\x18.uploadFile.UploadStatus\"\x00(\x01\x12\x36\n\x08sendTask\x12\x10.uploadFile.Task\x1a\x14.uploadFile.NewChunk\"\x00\x30\x01\x12:\n\tbidupload\x12\x11.uploadFile.Chunk\x1a\x14.uploadFile.NewChunk\"\x00(\x01\x30\x01\x42\x0f\n\x07\x65x.grpc\xa2\x02\x03HSWb\x06proto3'
 )
 
 _UPLOADSTATUSCODE = _descriptor.EnumDescriptor(
@@ -48,8 +48,8 @@ _UPLOADSTATUSCODE = _descriptor.EnumDescriptor(
   ],
   containing_type=None,
   serialized_options=None,
-  serialized_start=350,
-  serialized_end=401,
+  serialized_start=395,
+  serialized_end=446,
 )
 _sym_db.RegisterEnumDescriptor(_UPLOADSTATUSCODE)
 
@@ -89,6 +89,20 @@ _TASK = _descriptor.Descriptor(
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+    _descriptor.FieldDescriptor(
+      name='filename', full_name='uploadFile.Task.filename', index=3,
+      number=4, type=9, cpp_type=9, label=1,
+      has_default_value=False, default_value=b"".decode('utf-8'),
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+    _descriptor.FieldDescriptor(
+      name='compute_filenames', full_name='uploadFile.Task.compute_filenames', index=4,
+      number=5, type=9, cpp_type=9, label=3,
+      has_default_value=False, default_value=[],
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
   ],
   extensions=[
   ],
@@ -102,7 +116,7 @@ _TASK = _descriptor.Descriptor(
   oneofs=[
   ],
   serialized_start=30,
-  serialized_end=110,
+  serialized_end=155,
 )
 
 
@@ -140,8 +154,8 @@ _PAIR = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=112,
-  serialized_end=148,
+  serialized_start=157,
+  serialized_end=193,
 )
 
 
@@ -179,8 +193,8 @@ _TASKRESPONSE = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=150,
-  serialized_end=198,
+  serialized_start=195,
+  serialized_end=243,
 )
 
 
@@ -218,8 +232,8 @@ _NEWCHUNK = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=200,
-  serialized_end=245,
+  serialized_start=245,
+  serialized_end=290,
 )
 
 
@@ -250,8 +264,8 @@ _CHUNK = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=247,
-  serialized_end=271,
+  serialized_start=292,
+  serialized_end=316,
 )
 
 
@@ -289,8 +303,8 @@ _UPLOADSTATUS = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=273,
-  serialized_end=348,
+  serialized_start=318,
+  serialized_end=393,
 )
 
 _TASK.fields_by_name['feature_pair'].message_type = _PAIR
@@ -356,8 +370,8 @@ _FILESERVICE = _descriptor.ServiceDescriptor(
   index=0,
   serialized_options=None,
   create_key=_descriptor._internal_create_key,
-  serialized_start=404,
-  serialized_end=592,
+  serialized_start=449,
+  serialized_end=637,
   methods=[
   _descriptor.MethodDescriptor(
     name='upload',
