@@ -28,10 +28,10 @@ CHUNK_SIZE = 1024 * 1024  # 1MB
 #from geopy import distance
 
 from opendm import log
-from opendm import config
+#from opendm import config
 from opendm import system
 from opendm import io
-from opendm import gsd
+#from opendm import gsd
 
 from collections import defaultdict
 
