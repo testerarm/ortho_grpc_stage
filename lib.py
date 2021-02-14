@@ -25,7 +25,7 @@ import sendFile_pb2, sendFile_pb2_grpc
 
 CHUNK_SIZE = 1024 * 1024  # 1MB
 
-from geopy import distance
+#from geopy import distance
 
 from opendm import log
 from opendm import config
