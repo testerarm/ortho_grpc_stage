@@ -72,7 +72,7 @@ if __name__ == '__main__':
         max_concurrency = 4
 
 
-        images_filepath = '/home/j/ODM-master/grpc_stages/node1'  #file path of current node images
+        images_filepath = '/home/vm1/Desktop/ODM/grpc_stages/node1'  #file path of current node images
         file_path = images_filepath + '/'
         opensfm_config = opensfm_interface.setup_opensfm_config(file_path)
         active_number_of_nodes = 2
@@ -104,7 +104,7 @@ if __name__ == '__main__':
         #extract metadata 
 
         camera_models = {}
-        current_path = '/home/j/ODM-master/grpc_stages/node1/'
+        current_path = images_filepath
 
         opensfm_config = opensfm_interface.setup_opensfm_config(current_path)
         photo_list =  os.listdir(os.path.join(images_filepath, 'images'))

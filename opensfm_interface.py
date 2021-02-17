@@ -178,7 +178,7 @@ def _exif_file(file_path, image):
 
 def load_exif(file_path, image):
         """Load pre-extracted image exif metadata."""
-        print('load exif: ' + str(os.path.join(file_path, 'exif')))
+        #print('load exif: ' + str(os.path.join(file_path, 'exif')))
         with io.open_rt(_exif_file(os.path.join(file_path, 'exif'), image)) as fin:
             return json.load(fin)
 

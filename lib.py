@@ -16,9 +16,9 @@ from concurrent.futures import ThreadPoolExecutor
 import sys
 sys.path.append('../')
 sys.path.append('./opensfm/opensfm/')
-sys.path.append('/home/j/ODM-master/SuperBuild/src/opensfm')
-sys.path.append('/home/j/ODM-master/SuperBuild/install/lib/python2.7/dist-packages')
-sys.path.append('/home/j/ODM-master/SuperBuild/install/lib')
+sys.path.append('/home/vm1/Desktop/ODM/SuperBuild/src/opensfm')
+sys.path.append('/home/vm1/Desktop/ODM/SuperBuild/install/lib/python2.7/dist-packages')
+sys.path.append('/home/vm1/Desktop/ODM/SuperBuild/install/lib')
 
 
 import sendFile_pb2, sendFile_pb2_grpc
@@ -31,7 +31,7 @@ from opendm import log
 #from opendm import config
 from opendm import system
 from opendm import io
-#from opendm import gsd
+from opendm import gsd
 
 from collections import defaultdict
 
@@ -294,7 +294,7 @@ def sfm_extract_metadata_list_of_images(image_path,  opensfm_config, node_file_p
     except Exception as e:
         print(e.message)
         print(traceback.print_exc())
-        print(traceback.print_exception())
+        # print(traceback.print_exception())
         
         return False
     

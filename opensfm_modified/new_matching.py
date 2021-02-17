@@ -138,19 +138,19 @@ def save_matches(file_path, images_ref, matched_pairs):
     """ Given pairwise matches (image 1, image 2) - > matches,
     save them such as only {image E images_ref} will store the matches.
     """
-    print('save matches')
+    #print('save matches')
 
     matches_per_im1 = {im: {} for im in images_ref}
     for (im1, im2), m in matched_pairs.items():
         matches_per_im1[im1][im2] = m
 
-    print(matches_per_im1)
+    #print(matches_per_im1)
 
     for im1, im1_matches in matches_per_im1.items():
         
-        print(im1)
-        print('save 2')
-        print(im1_matches)
+        # print(im1)
+        #print('save 2')
+        #print(im1_matches)
         
 
         opensfm_interface.save_matches(file_path,im1, im1_matches)
