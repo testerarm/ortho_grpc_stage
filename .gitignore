@@ -15,3 +15,5 @@ node3/*
 ./node3/*
 
 *.pyc
+*.json
+
