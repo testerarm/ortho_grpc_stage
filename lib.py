@@ -920,7 +920,7 @@ class FileServer(sendFile_pb2_grpc.FileServiceServicer):
 
                                 #write time into json file timer
                                 end_timer = timer()-start_timer
-                                write_json_append({req_node_path+'exif': end_timer}, req_node_path_timer)
+                                write_json({req_node_path+'exif': end_timer}, os.path.join(req_node_path, 'exif.json'))
 
                                 
                                 print('is complete')
@@ -981,7 +981,7 @@ class FileServer(sendFile_pb2_grpc.FileServiceServicer):
 
                             #write time into json file timer
                             end_timer = timer()-start_timer
-                            write_json_append({req_node_path+'detect_features': end_timer}, req_node_path_timer)
+                            write_json({req_node_path+'detect_features': end_timer},"features.json")
 
                          
 
@@ -1068,7 +1068,7 @@ class FileServer(sendFile_pb2_grpc.FileServiceServicer):
                        
 
                         print('here in main taskName')
-                        print(pairs_matches)
+                        #print(pairs_matches)
                         filename = pair1+'-'+pair2
 
 
@@ -1079,7 +1079,7 @@ class FileServer(sendFile_pb2_grpc.FileServiceServicer):
 
                         #write time into json file timer
                         end_timer = timer()-start_timer
-                        write_json_append({req_node_path+'_feature_matching_pairs' + str(pair1) + '-' +str(pair2): end_timer}, req_node_path_timer)
+                        write_json({req_node_path+'_feature_matching_pairs' + str(pair1) + '-' +str(pair2): end_timer}, str(pair1) + '-fp-' +str(pair2)+".json" )
 
 
 
@@ -1243,7 +1243,7 @@ class FileServer(sendFile_pb2_grpc.FileServiceServicer):
 
 
                         #write time into json file timer
-                        write_json_append(timer_map, req_node_path_timer)
+                        write_json(timer_map, req_node_path_timer)
 
                         print('Create Tracks Total Time: ' + str(sfm_create_tracks_timer))
                         print('OpenSfm Reconstruction Total Time: ' + str(sfm_opensfm_reconstruction_time))
@@ -1271,6 +1271,8 @@ class FileServer(sendFile_pb2_grpc.FileServiceServicer):
                         files = files+more_files
 
                         for each in files:
+			    if not (os.path.isfile(io.join_paths(mesh_folder_path, each))):
+				continue
                             with open(io.join_paths(mesh_folder_path, each), 'rb') as f:
                                         while True:
                                             piece = f.read(CHUNK_SIZE)

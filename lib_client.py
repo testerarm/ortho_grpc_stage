@@ -113,17 +113,22 @@ def do_task(job_queue):
 
                     #filename =  pair[0]+'-'+pair[1] 
                     matches = opensfm_interface.load_matches(task['filepath'],filename)
-                    print('load matches')
-                    print(matches)
+                    #print('load matches')
+                    #print(matches)
                     task['lock'].acquire()
                     try:
+			print('lock acquired')
                         tup = (pair[0], pair[1])
                         task['results'].update(matches)
+			print('updated matches')
                     except Exception as e:
                         print(e.message)
-                        sys.exit(0)
-                    finally:
-                        task['lock'].release()
+                        pass
+
+		
+                    
+                    task['lock'].release()
+		    print('lock release')
 
                 elif task['title'] == 'sfm_create_tracks':
                     # needs images
@@ -509,17 +514,20 @@ def do_task(job_queue):
 
                     filename =  pair[0]+'-'+pair[1] 
                     matches = opensfm_interface.load_matches(task['filepath'],filename)
-                    print('load matches')
-                    print(matches)
+                    #print('load matches')
+                    #print(matches)
+		    print('try lock')
                     task['lock'].acquire()
                     try:
                         tup = (pair[0], pair[1])
                         task['results'].update(matches)
+			print('lock acquired and reuslt done for send ')
                     except Exception as e:
                         print(e.message)
-                        sys.exit(0)
-                    finally:
-                        task['lock'].release()
+                        pass
+                   
+                    task['lock'].release()
+		    print('lock release for send ')
                     
                         
 
@@ -610,7 +618,7 @@ if __name__ == '__main__':
             client = lib.FileClient('localhost:' + nodeid_map[each_node], nodeid)
             node_client[each_node] = client
 
-        images_filepath = '/home/j/ODM-master/grpc_stages/node1'  #file path of current node images
+        images_filepath = '/home/vm1/Desktop/ODM/grpc_stages/node1'  #file path of current node images
         file_path = images_filepath + '/'
         opensfm_config = opensfm_interface.setup_opensfm_config(file_path)
         active_number_of_nodes = 2
