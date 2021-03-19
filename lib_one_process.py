@@ -19,6 +19,12 @@ import traceback
 
 import json
 
+from opendm import photo
+from opendm import types
+from opendm import log
+
+
+
 def write_json(data, filename):
     with open(filename, 'w') as f:
         json.dump(data, f, indent=4)
@@ -41,7 +47,32 @@ def write_json_append(data, filename):
 
         write_json(data, filename)  
 
-       
+def save_images_database(photos, database_file):
+    with open(database_file, 'w') as f:
+        f.write(json.dumps(map(lambda p: p.__dict__, photos)))
+    
+    log.ODM_INFO("Wrote images database: %s" % database_file)
+
+def load_images_database(database_file):
+    # Empty is used to create types.ODM_Photo class
+    # instances without calling __init__
+    class Empty:
+        pass
+
+    result = []
+
+    log.ODM_INFO("Loading images database: %s" % database_file)
+
+    with open(database_file, 'r') as f:
+        photos_json = json.load(f)
+        for photo_json in photos_json:
+            p = Empty()
+            for k in photo_json:
+                setattr(p, k, photo_json[k])
+            p.__class__ = types.ODM_Photo
+            result.append(p)
+
+    return result   
 
 if __name__ == '__main__':
     
@@ -178,10 +209,16 @@ if __name__ == '__main__':
 
         start = timer()
 
-        lib.sfm_compute_depthmaps(current_path, opensfm_config)
+
+	#export ply
+	
+
+        #lib.sfm_compute_depthmaps(current_path, opensfm_config)
+
+	lib.export_ply_function(images_filepath, opensfm_config)
 
         end = timer()
-        sfm_compute_depthmaps_time = end - start
+        sfm_export_ply_time = end - start
 
 
 
@@ -234,8 +271,40 @@ if __name__ == '__main__':
         
         start = timer()
 
+	from opendm import io
+	images_database_file = io.join_paths(current_path, 'images.json')
+	
+        if not io.file_exists(images_database_file):
+            files = photo_list
+	    images_dir = io.join_paths(file_path,'images')
+            if files:
+                # create ODMPhoto list
+                path_files = [io.join_paths(images_dir, f) for f in files]
 
-        lib.odm_mesh_function(current_path, max_concurrency)
+                photos = []
+		dataset_list = io.join_paths(file_path,'img_list')
+                with open(dataset_list, 'w') as dataset_list:
+                    log.ODM_INFO("Loading %s images" % len(path_files))
+                    for f in path_files:
+                        photos += [types.ODM_Photo(f)]
+                        dataset_list.write(photos[-1].filename + '\n')
+
+                # Save image database for faster restart
+                save_images_database(photos, images_database_file)
+            else:
+                log.ODM_ERROR('Not enough supported images in %s' % images_dir)
+                exit(1)
+        else:
+            # We have an images database, just load it
+            photos = load_images_database(images_database_file)
+
+        log.ODM_INFO('Found %s usable images' % len(photos))
+
+        # Create reconstruction object
+        reconstruction = types.ODM_Reconstruction(photos) 
+
+
+        lib.odm_mesh_function(opensfm_config,current_path, max_concurrency, reconstruction)
 
         end = timer()
         odm_mesh_time = end - start
@@ -248,7 +317,14 @@ if __name__ == '__main__':
 
         end = timer()
         odm_texturing_time = end - start
+	
+	import orthophoto
+	start = timer()
+	orthophoto.process(opensfm_config, current_path, 4, reconstruction)
  
+	end = timer()
+        odm_orthophoto_time = end - start
+	print('odm_orthophoto' + ' ' + str(odm_orthophoto_time))
 
         # for each in ref_image:
         #     opensfm_interface.detect(current_path+'features', current_path+each,each ,opensfm_config)
@@ -383,7 +459,7 @@ if __name__ == '__main__':
         print('OpenSfm Reconstruction Total Time: ' + str(sfm_opensfm_reconstruction_time))
         print('OpenSfm Undistort Image Total Time: ' + str(sfm_undistort_image_time))
         print('OpenSfm Export Visual Sfm Total Time: ' + str(sfm_export_visualsfm_time))
-        print('OpenSfm Compute DepthMaps Sfm Total Time: ' + str(sfm_compute_depthmaps_time))
+        print('OpenSfm Export Ply Sfm Total Time: ' + str(sfm_export_ply_time))
         print('Mve Makescene Sfm Total Time: ' + str(mve_makescene_function_time))
         print('Mve Dense Reconstruction Sfm Total Time: ' + str(mve_dense_reconstruction_time))
         print('Mve Scene 2 Pset Sfm Total Time: ' + str(mve_mve_scene2pset_time))
@@ -408,7 +484,7 @@ if __name__ == '__main__':
         timer_map['sfm_open_reconstruction-'+nodeids] = sfm_opensfm_reconstruction_time
         timer_map['sfm_undistort-'+nodeids] = sfm_undistort_image_time
         timer_map['sfm_export_visualsfm-'+nodeids] = sfm_export_visualsfm_time
-        timer_map['sfm_compute_depthmap-'+nodeids] = sfm_compute_depthmaps_time
+        timer_map['sfm_compute_depthmap-'+nodeids] = sfm_export_ply_time
         timer_map['mve_makescence_time-'+nodeids] = mve_makescene_function_time
         timer_map['mve_dense_recon_time-'+nodeids] = mve_dense_reconstruction_time
         timer_map['mve_scence2pset_time-'+nodeids] = mve_mve_scene2pset_time
@@ -422,7 +498,7 @@ if __name__ == '__main__':
 
 
         #write time into json file timer
-        write_json_append(timer_map, os.path.join(file_path,str(nodeid)+'-compute_times.json'))
+        write_json(timer_map, os.path.join(file_path,str(nodeid)+'-compute_times.json'))
 
         print('#######################')
         
