@@ -195,9 +195,15 @@ def load_config(filepath):
     return config
 
 
-
+from opendm import config
 def opensfm_load_config(filepath):
-    config = default_config()
+
+    config1 = config.config()
+    args_dict = vars(config1)
+    
+     
+
+    config2 = default_config()
 
     ### hard coded configuration
 
@@ -209,7 +215,7 @@ def opensfm_load_config(filepath):
             'depthmap_method': "PATCH_MATCH",
             'depthmap_min_consistent_views': 3,
             'depthmap_min_patch_sd': 1,
-            'depthmap_resolution': 640,
+            'depthmap_resolution': 480,
             'feature_min_frames': 8000,
             'feature_process_size': 2048,
             'feature_type': "SIFT",
@@ -222,12 +228,17 @@ def opensfm_load_config(filepath):
             'undistorted_image_format': "tif",
             'undistorted_image_max_size': 1974,
             'use_altitude_tag': True,
-            'use_exif_size': False
+            'use_exif_size': False,
+	    'use_3dmesh':False,
+	    'verbose': False
+	    
         }
 
 
     for k,v in config3.items():
-        config[k] = v
+        config2[k] = v
+    for k,v in args_dict.items():
+        config2[k] = v
 
     # if os.path.isfile(filepath):
     #     with open(filepath) as fin:
@@ -236,8 +247,8 @@ def opensfm_load_config(filepath):
     #         for k, v in new_config.items():
     #             config[k] = v
 
-    print(config['feature_type'])
+    print(config2['feature_type'])
 
-    return config
+    return config2
 
 
