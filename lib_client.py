@@ -667,7 +667,7 @@ if __name__ == '__main__':
 	    #fe80::ba6c:4e2:b8cc:a62b]
             #client = lib.FileClient('localhost:' + nodeid_map[each_node], nodeid)
 	    if (each_node == 2):
-	    	client = lib.FileClient('10.10.10.2:' + nodeid_map[each_node], nodeid)
+	    	client = lib.FileClient('10.10.10.3:' + nodeid_map[each_node], nodeid)
 	    if (each_node == 3):
 	    	client = lib.FileClient('10.10.10.4:' + nodeid_map[each_node], nodeid)
 	    if (each_node == 4):
@@ -795,6 +795,9 @@ if __name__ == '__main__':
 
         end = timer()
         exif_extraction_time = end - start
+
+
+	
 
         
 
@@ -1225,7 +1228,7 @@ if __name__ == '__main__':
 	system.mkdir_p(os.path.join(submodel_path, 'opensfm'))
         # Create reconstruction object
         reconstruction = types.ODM_Reconstruction(photos)
-	opensfm_interface.invent_reference_lla(images_filepath, os.path.join(submodel_path, 'opensfm'), photo_list)
+	opensfm_interface.invent_reference_lla(images_filepath,  photo_list,os.path.join(submodel_path, 'opensfm'))
 	
 	system.mkdir_p(os.path.join(submodel_path,'odm_georeferencing'))
 	odm_georeferencing = io.join_paths(submodel_path, 'odm_georeferencing')
@@ -1292,6 +1295,7 @@ if __name__ == '__main__':
         #merge them the orthopthotos and convert to png
 	from opendm import orthophoto
 	orthophoto_list = []
+	"""
 	for key, value in node_cluster_list.items():
             submodel_num = 'submodel_' + str(key[0])
             submodel_path = os.path.join(file_path, 'submodel_' + str(key[0]))
@@ -1314,6 +1318,7 @@ if __name__ == '__main__':
 
 	}
         orthophoto.merge(orthophoto_list, os.path.join(images_filepath, 'odm_orthophoto_merge.tif'), orthophoto_vars)
+	"""
 	   
 	#convert to png
 	

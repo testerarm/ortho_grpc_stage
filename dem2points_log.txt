@@ -1,0 +1,24 @@
+Running with parameters:
+	--inputFile /home/vm1/Desktop/ODM/grpc_stages/node1/submodel_0/mesh/tmp/mesh_dsm.tif
+	--outputFile /home/vm1/Desktop/ODM/grpc_stages/node1/submodel_0/mesh/tmp/dsm_points.ply
+	--skirtHeightThreshold 1.500000
+	--skirtIncrements 0.200000
+	--skirtHeightCap 100.000000
+Raster Size is 738x844
+Extent is (-40.535316, 18.836784), (-56.832924, 11.066876)
+Read nodata value: -9999
+Calculating skirts and vertex count... 5835 skirt points will be added
+Total vertices: 622395
+Sampling and writing to file... done!
+Running with parameters:
+	--inputFile /home/vm1/Desktop/ODM/grpc_stages/node1/submodel_0/mesh/tmp/mesh_dsm.tif
+	--outputFile /home/vm1/Desktop/ODM/grpc_stages/node1/submodel_0/mesh/tmp/dsm_points.ply
+	--skirtHeightThreshold 1.500000
+	--skirtIncrements 0.200000
+	--skirtHeightCap 100.000000
+Raster Size is 1575x1648
+Extent is (-49.770859, 145.529141), (-110.292618, 94.059382)
+Read nodata value: -9999
+Calculating skirts and vertex count... 826407 skirt points will be added
+Total vertices: 3409131
+Sampling and writing to file... done!

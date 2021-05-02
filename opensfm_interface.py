@@ -495,7 +495,7 @@ def _reference_lla_path(file_path):
         return os.path.join(file_path, 'reference_lla.json')
 
 
-def invent_reference_lla(file_path,submodel_path='',images=None):
+def invent_reference_lla(file_path,images=None,submodel_path=''):
         lat, lon, alt = 0.0, 0.0, 0.0
         wlat, wlon, walt = 0.0, 0.0, 0.0
 	save_path = file_path

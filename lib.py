@@ -23,7 +23,7 @@ sys.path.append('/home/vm2/Desktop/ODM/SuperBuild/install/lib')
 
 import sendFile_pb2, sendFile_pb2_grpc
 
-CHUNK_SIZE = 1024 * 1024 * 4  # 1MB
+CHUNK_SIZE = 1024 * 1024 * 8  # 1MB
 
 #from geopy import distance
 
@@ -126,7 +126,11 @@ class FileClient:
         self.nodeid = str(nodeid)
         print(nodeid)
         print('address' + str(address))
-        channel = grpc.insecure_channel(address) 
+        channel = grpc.insecure_channel(address, options = [
+	    ('grpc.max_message_length',  50 * 1024 * 1024),
+            ('grpc.max_send_message_length', 50 * 1024 * 1024),
+            ('grpc.max_receive_message_length', 50 * 1024 * 1024)
+        ]) 
         self.stub = sendFile_pb2_grpc.FileServiceStub(channel)
 
     def sendTask(self, taskName, this_nodeid, taskDir, pairs=[], compute_filepath = '', submodel_path = '', cluster_images = []):
@@ -504,7 +508,7 @@ def sfm_max_undistort_image_size(current_path, image_path):
     
         # get match image sizes
         outputs['undist_image_max_size'] = max(
-            gsd.image_max_size(photos, 5.0, os.path.join(current_path,'reconstruction.json')),
+            gsd.image_max_size(photos, 5.0, os.path.join(current_path, 'submodel_0' ,'reconstruction.json')),
             0.1
         )        
         # print(outputs)
@@ -1538,7 +1542,7 @@ class FileServer(sendFile_pb2_grpc.FileServiceServicer):
 
                 
 
-        self.server = grpc.server(futures.ThreadPoolExecutor(max_workers=3), options = [
+        self.server = grpc.server(futures.ThreadPoolExecutor(max_workers=4), options = [
             ('grpc.max_send_message_length', 50 * 1024 * 1024),
             ('grpc.max_receive_message_length', 50 * 1024 * 1024)
         ])
